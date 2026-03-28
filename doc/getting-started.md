@@ -6,10 +6,10 @@
 
 ```bash
 # Linux (amd64)
-curl -sSL https://scg.dev/install.sh | sh
+curl -sSL https://scg.bds421.com/install.sh | sh
 
 # macOS (Apple Silicon)
-curl -sSL https://scg.dev/install.sh | sh
+curl -sSL https://scg.bds421.com/install.sh | sh
 ```
 
 ### From Source
@@ -69,7 +69,7 @@ jobs:
 
       - name: Verify supply chain
         run: |
-          curl -sSL https://scg.dev/install.sh | sh
+          curl -sSL https://scg.bds421.com/install.sh | sh
           scg check
 ```
 

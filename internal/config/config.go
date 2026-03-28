@@ -32,7 +32,7 @@ func Load() *SCGConfig {
 	return &SCGConfig{
 		GitHubToken:     os.Getenv("GITHUB_TOKEN"),
 		PlatformAPIKey:  os.Getenv("SCG_API_KEY"),
-		PlatformBaseURL: envOrDefault("SCG_PLATFORM_URL", "https://api.scg.dev"),
+		PlatformBaseURL: envOrDefault("SCG_PLATFORM_URL", "https://api.scg.bds421.com"),
 		LogLevel:        envOrDefault("SCG_LOG_LEVEL", "info"),
 		LockfilePath:    envOrDefault("SCG_LOCKFILE", "scg.lock"),
 		WorkflowDir:     envOrDefault("SCG_WORKFLOW_DIR", ".github/workflows"),
