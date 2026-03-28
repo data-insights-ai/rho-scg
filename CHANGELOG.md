@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-03-28
+
+### Changed
+- README restructured: Quick Start moved above the fold, funnel structure (What → Install → Why → Deep dive)
+- Attack tables sorted chronologically (newest first), split into "Direct" vs "Outside Scope" with honest assessments
+- Removed overclaims on SolarWinds, 3CX, xz/liblzma — clearly marked as indirect/outside SCG's scope
+- All URLs updated to `scg.bds421.com`, email to `security@bds421.com`
+- CLAUDE.md consolidated with full package layout, exact dependency versions, session protocol
+
+### Added
+- SKILL.md for agent/tool discovery — describes CLI, library, CI, and API integration paths
+- CONTRIBUTING.md for contributor onboarding
+
 ## [0.1.2] - 2026-03-28
 
 ### Added

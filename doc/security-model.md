@@ -78,7 +78,7 @@ CI environment variables           Ed25519/OIDC signatures
 
 ## Vulnerability Reporting
 
-Report security vulnerabilities to: **security@bds421.dev**
+Report security vulnerabilities to: **security@bds421.com**
 
 Please include:
 - Description of the vulnerability

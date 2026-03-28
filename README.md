@@ -2,74 +2,124 @@
 
 **Prevent supply chain attacks before they reach your pipeline.**
 
-SCG is a single-binary CLI that enforces dependency integrity and secret least-privilege across CI/CD pipelines. It detects tag hijacking, blocks unauthorized secret exposure, and ships as a GitHub Action, GitLab CI step, or standalone tool.
+SCG enforces dependency integrity and secret least-privilege across CI/CD pipelines. Single binary. Zero config. Two independent defense layers that would have stopped every major CI/CD supply chain attack of the past seven years.
+
+- **Digest pinning** — locks every dependency to an immutable content hash. Tag hijacking, dependency confusion, and typosquatting are structurally impossible.
+- **Secret scoping** — enforces least-privilege per CI step. A scanner cannot read publish tokens. A linter cannot access cloud credentials.
+- **Drift detection** — catches any change between what you approved and what runs. Powered by a temporal knowledge graph that tracks dependency state over time.
+
+## Quick Start
+
+### Install
 
 ```bash
-$ scg init
+# Binary (Linux/macOS)
+curl -sSL https://scg.bds421.com/install.sh | sh
 
-  Scanning .github/workflows/ci.yml ...
-  Found 6 dependencies across 4 ecosystems
+# Go
+go install gitlab2024.bds421-cloud.com/bds421/rho/supply-chain-guardian/cmd/scg@latest
 
-  Resolving digests:
-    actions/checkout@v4             sha256:b4ffde65
-    aquasecurity/trivy-action@v1    sha256:57a97c7e
-    docker/build-push-action@v5     sha256:2cdde995
-    pypa/gh-action-pypi-publish@v1  sha256:81e9d935
+# From source
+git clone https://github.com/bds421/supply-chain-guardian.git
+cd supply-chain-guardian && make build
+```
 
-  Secret exposure analysis:
-    Step "trivy-scan" has access to PYPI_API_TOKEN
-      Trivy does not publish to PyPI (blocked by profile)
-    Step "publish" correctly scoped to PYPI_API_TOKEN only
+### Lock your dependencies
 
-  Written: scg.lock (4 entries, signed)
+```bash
+scg init                          # scan workflows, resolve, write scg.lock
+git add scg.lock && git commit -m "Add supply chain lockfile"
+```
+
+### Verify in CI
+
+```yaml
+# .github/workflows/ci.yml
+jobs:
+  build:
+    steps:
+      - uses: actions/checkout@v4
+
+      # Verify all dependencies before anything runs
+      - uses: bds421/scg-action@v1
+        with:
+          mode: check
+
+      # Scope secrets before each sensitive step
+      - uses: bds421/scg-action@v1
+        with:
+          mode: scope
+          step-name: trivy-scan
+
+      - uses: aquasecurity/trivy-action@sha256:57a97c7e...
+```
+
+### Catch a tag hijack
+
+```bash
+$ scg check
+
+  CRITICAL DRIFT DETECTED
+
+  aquasecurity/trivy-action@v1
+    Locked:  sha256:57a97c7e7821a5776cebc9bb87c984fa
+    Live:    sha256:ff00bad1337cafe0000000000000000000
+    Status:  TAG HIJACK — same tag, different commit
+
+  Build HALTED. Exit code: 1
 ```
 
 ---
 
 ## Why SCG?
 
-Software supply chain attacks are not theoretical. They are happening now, at scale, hitting thousands of organizations simultaneously. Here are the attacks that shaped SCG's design:
+Software supply chain attacks are not theoretical. They are happening now, at scale, hitting thousands of organizations. SCG exists because every major attack of the past seven years shares the same root causes — and the same fix.
 
 ### The Attack That Started It All
 
-On March 14, 2025, the **TeamPCP** attack compromised the popular `tj-actions/changed-files` GitHub Action by force-pushing malicious code to 350+ existing tags. The compromised action harvested CI secrets from **23,000+ repositories** — dumping runner memory to extract PATs, npm tokens, RSA keys, and AWS credentials. Stolen PyPI tokens were used to publish backdoored packages. CISA added it to the Known Exploited Vulnerabilities catalog.
+On March 14, 2025, the **TeamPCP** attack compromised `tj-actions/changed-files` by force-pushing malicious code to 350+ existing tags. The compromised action harvested CI secrets from **23,000+ repositories**. Stolen PyPI tokens were used to publish backdoored packages. CISA added it to the Known Exploited Vulnerabilities catalog.
 
 The attack cascaded from an earlier compromise of `reviewdog/action-setup`, where a hijacked `@v1` tag leaked the PAT that unlocked the tj-actions attack. One mutable tag, two compromised organizations, 23,000 victims.
 
-**Two independent failures enabled this:**
-1. Tags are mutable. The same `@v1` tag pointed to different commits before and after the attack.
+**Two failures enabled this:**
+1. Tags are mutable. The same `@v1` pointed to different commits before and after the attack.
 2. Every CI step had access to every secret. A scanner could read publish tokens.
-
-SCG prevents both:
 
 | Attack Step | SCG Defense |
 |---|---|
-| Force-push tag to malicious commit | `scg check`: digest mismatch detected, build halted |
-| Compromised action reads all secrets | `scg scope`: PYPI_API_TOKEN stripped from scanner environment |
-| Stolen token publishes backdoored package | Token was never exposed to the scanner |
+| Force-push tag to malicious commit | `scg check`: digest mismatch, build halted |
+| Compromised action reads all secrets | `scg scope`: publish tokens stripped from scanner environment |
+| Stolen token publishes backdoored package | Token was never exposed |
 
-Either layer alone breaks the kill chain. Together, they make this class of attack structurally impossible.
+Either layer alone breaks the kill chain.
 
-### This Is Not an Isolated Incident
+### Attacks SCG Directly Stops
 
-SCG is designed to stop an entire **class** of attacks, not just one. Every major supply chain attack of the past five years shares the same root cause: trusting mutable references and granting excessive privileges.
+These target CI/CD dependency inputs — the exact problem SCG is built for. Sorted newest-first.
 
 | Attack | Date | What Happened | Impact | SCG Defense |
 |---|---|---|---|---|
-| **tj-actions/changed-files** | Mar 2025 | GitHub Action tags force-pushed to malicious commits | 23,000+ repos compromised | Digest pinning detects tag hijack |
-| **reviewdog/action-setup** | Mar 2025 | Upstream action tag hijacked, cascading to tj-actions | CISA KEV, multiple actions compromised | Digest pinning + secret scoping limits blast radius |
-| **Codecov Bash Uploader** | Jan-Apr 2021 | CI script silently modified to exfiltrate all env vars via `$(env)` | 29,000+ enterprise customers (Twilio, HashiCorp, Rapid7) | Digest verification catches script tampering; secret scoping blocks blanket `$(env)` exfiltration |
-| **xz/liblzma backdoor** | Mar 2024 | 2-year social engineering campaign; backdoor in release tarballs but NOT in git source | CVSS 10.0, nearly reached stable Linux distros | Drift detection catches tarball-vs-source divergence |
-| **SolarWinds SUNBURST** | Dec 2020 | Build system compromised; malicious code injected during compilation | 18,000+ orgs including US Treasury, DHS, FireEye | Drift detection catches build artifact divergence from source |
-| **ua-parser-js** (npm) | Oct 2021 | Maintainer account hijacked; cryptominer + credential stealer published | 7M+ weekly downloads, malicious for 4 hours | Digest pinning rejects unexpected content hash |
-| **event-stream** (npm) | Nov 2018 | Maintainer socially engineered; malicious dependency added targeting Bitcoin wallets | 2M+ weekly downloads, 8M malicious installs over 2.5 months | Manifest enforcement blocks unexpected new transitive dependency |
-| **PyTorch torchtriton** | Dec 2022 | Dependency confusion: public PyPI package squatted internal name; exfiltrated SSH keys via DNS | 2,700+ downloads in 5 days | Manifest pins source registry + content digest; confusion detected |
-| **3CX Desktop App** | Mar 2023 | First documented cascading supply chain attack: compromised Trading Technologies led to compromised 3CX | 600,000+ customers, 12M users | Drift detection catches build output divergence |
-| **PyPI malware campaigns** | 2022-2025 | Sustained typosquatting: 500+ fake packages in a single 2024 wave; PyPI suspended all registrations | 10,000+ malicious downloads per campaign | Manifest allowlist rejects unknown package names |
+| **tj-actions/changed-files** | Mar 2025 | GitHub Action tags force-pushed to malicious commits; CI secrets stolen | 23,000+ repos, CISA KEV | Digest pinning rejects rewritten tag; secret scoping strips credentials |
+| **reviewdog/action-setup** | Mar 2025 | Action tag hijacked, leaking PAT that cascaded to tj-actions | CISA KEV, multiple downstream actions | Digest pinning catches tag rewrite; secret scoping limits blast radius |
+| **PyTorch torchtriton** | Dec 2022 | Dependency confusion: public PyPI package squatted internal name; exfiltrated SSH keys | 2,700+ downloads in 5 days | Manifest pins source registry + content digest; registry switch detected |
+| **Codecov Bash Uploader** | Jan-Apr 2021 | CI script modified to exfiltrate all env vars via `$(env)` | 29,000+ customers, undetected 2 months | Digest catches script tampering; secret scoping blocks `$(env)` exfiltration |
+| **ua-parser-js** (npm) | Oct 2021 | npm account hijacked; cryptominer + credential stealer published | 7M+ weekly downloads | Digest pinning rejects unexpected content hash |
+| **event-stream** (npm) | Nov 2018 | Maintainer socially engineered; malicious transitive dependency added | 8M malicious installs over 2.5 months | Manifest locks full dependency tree; new transitive dep rejected |
+| **PyPI typosquatting** | 2022-2025 | Sustained campaigns: 500+ fake packages in a single 2024 wave | 10,000+ malicious downloads per campaign | Manifest allowlist rejects unknown packages |
+
+### Attacks Outside SCG's Scope
+
+These compromised build infrastructure or system packages — not CI/CD dependency inputs. SCG cannot prevent them. We include them for context, not to overclaim.
+
+| Attack | Date | What Happened | Impact | Honest Assessment |
+|---|---|---|---|---|
+| **xz/liblzma** | Mar 2024 | 2-year social engineering; backdoor in release tarballs (not git source) | CVSS 10.0 | SCG does not cover system packages (apt/yum). Only catches this if xz enters your pipeline as a Docker base image layer or Go module dependency. |
+| **3CX Desktop App** | Mar 2023 | Cascading attack: compromised upstream vendor led to compromised 3CX build | 600,000+ customers | SCG protects pipeline inputs, not build infrastructure. 3CX is not a CI dependency. |
+| **SolarWinds SUNBURST** | Dec 2020 | State actor compromised build system; malicious code injected during compilation | 18,000+ orgs | SCG does not protect build systems. Orion is enterprise software, not a CI dependency. The real defense is build reproducibility, which SCG does not do today. |
 
 ### The Pattern
 
-Every attack above exploits the same structural weakness:
+Every attack SCG directly stops exploits the same structural weakness:
 
 ```
 Mutable reference (tag, version, script URL)
@@ -78,12 +128,7 @@ Mutable reference (tag, version, script URL)
      = Supply chain compromise
 ```
 
-SCG eliminates all three:
-- **Immutable digests** replace mutable references
-- **Secret scoping** enforces least-privilege per step
-- **Drift detection** catches any change between what you approved and what runs
-
-### Kill Chain Analysis: How SCG Stops Each Attack
+### Kill Chain Analysis
 
 <details>
 <summary><b>tj-actions/changed-files + reviewdog (March 2025)</b></summary>
@@ -92,6 +137,7 @@ SCG eliminates all three:
 Attack Chain                          SCG Defense
 ──────────────────────────────────    ────────────────────────────────
 1. Attacker hijacks reviewdog PAT     (Upstream — outside SCG scope)
+
 2. reviewdog/action-setup@v1 tag      scg check: DRIFT DETECTED
    rewritten to malicious commit      → SHA mismatch, build halts here
                                       Attack stopped at step 2.
@@ -132,52 +178,6 @@ Attack Chain                          SCG Defense
 </details>
 
 <details>
-<summary><b>xz/liblzma Backdoor (March 2024)</b></summary>
-
-```
-Attack Chain                          SCG Defense
-──────────────────────────────────    ────────────────────────────────
-1. "Jia Tan" gains maintainer trust   (Social engineering — outside
-   over 2+ year campaign               SCG scope)
-
-2. Backdoor inserted into release     scg check: DRIFT DETECTED
-   tarballs but NOT in git source      → Tarball digest diverges from
-                                       git source digest
-                                      Attack stopped at step 2.
-
-3. (If #2 missed) Backdoor hijacks    Downstream consumers with SCG
-   OpenSSH via liblzma, enabling       reject the tarball — content
-   remote code execution               hash doesn't match manifest
-
-4. Hundreds of millions of Linux       Never reached — caught before
-   servers potentially compromised     reaching stable distros
-```
-</details>
-
-<details>
-<summary><b>SolarWinds SUNBURST (December 2020)</b></summary>
-
-```
-Attack Chain                          SCG Defense
-──────────────────────────────────    ────────────────────────────────
-1. APT29 compromises SolarWinds       (State actor — outside SCG scope)
-   build system
-
-2. SUNSPOT implant substitutes        scg check: DRIFT DETECTED
-   malicious source during build,      → Build artifact hash diverges
-   restores original afterward          from source hash
-                                      Attack stopped at step 2.
-
-3. 18,000 organizations receive       SCG-protected consumers reject
-   trojanized Orion update             update — digest doesn't match
-                                       expected build output
-
-4. 14-month undetected access to       Detected at first verification,
-   US Treasury, DHS, FireEye           not 14 months later
-```
-</details>
-
-<details>
 <summary><b>ua-parser-js npm Hijack (October 2021)</b></summary>
 
 ```
@@ -186,15 +186,15 @@ Attack Chain                          SCG Defense
 1. Attacker hijacks npm account        (Account security — outside
    of ua-parser-js maintainer          SCG scope)
 
-2. Malicious versions 0.7.29,         scg check: DRIFT DETECTED
-   0.8.0, 1.0.0 published with        → Content hash for ua-parser-js
-   cryptominer + password stealer       doesn't match locked digest
+2. Malicious versions published        scg check: DRIFT DETECTED
+   with cryptominer + password         → Content hash doesn't match
+   stealer                              locked digest
                                       Attack stopped at step 2.
 
 3. 7M+ weekly downloaders pull         SCG-locked projects reject the
    trojanized package                   package — wrong hash
 
-4. Windows password-stealing trojan    Never installed
+4. Password-stealing trojan            Never installed
    harvests browser credentials
 ```
 </details>
@@ -232,15 +232,13 @@ Attack Chain                          SCG Defense
    internal package name
 
 2. pip resolves public PyPI before    scg check: DRIFT DETECTED
-   private index — malicious           → Package source changed from
-   package installed                    private index to public PyPI
-                                      → Content hash mismatch
+   private index — malicious           → Source registry changed
+   package installed                   → Content hash mismatch
                                       Attack stopped at step 2.
 
 3. Malware exfiltrates SSH keys,      scg scope: build tool profile
    .gitconfig, /etc/passwd via         forbids SSH_*, restricts env
    encrypted DNS queries               exposure
-                                      → SSH keys never accessible
 
 4. 2,700+ downloads over 5 days      Never reached for SCG users
 ```
@@ -255,9 +253,8 @@ Attack Chain                          SCG Defense
 1. Attacker uploads "reqeusts"        (Typo — outside SCG scope)
    (typo of "requests") to PyPI
 
-2. Developer installs typosquatted    scg check: BLOCKED
-   package in CI/CD pipeline           → Package name not in approved
-                                        manifest allowlist
+2. CI pipeline installs               scg check: BLOCKED
+   typosquatted package                → Package not in manifest
                                       Attack stopped at step 2.
 
 3. Malware deploys zgRAT, steals     Never installed — manifest
@@ -265,90 +262,25 @@ Attack Chain                          SCG Defense
    credentials
 
 4. 500+ fake packages in single       All rejected — none match
-   2024 wave; PyPI suspends            any locked digest
-   registrations
+   2024 wave                           any locked digest
 ```
 </details>
 
 ### Coverage Matrix
 
-| Attack | Digest Pinning | Secret Scoping | Drift Detection |
-|---|:---:|:---:|:---:|
-| tj-actions + reviewdog (2025) | Stops it | Limits blast radius | Stops it |
-| Codecov (2021) | Stops it | Limits blast radius | Stops it |
-| xz/liblzma (2024) | Stops it | - | Stops it |
-| SolarWinds (2020) | Stops it | - | Stops it |
-| ua-parser-js (2021) | Stops it | - | Stops it |
-| event-stream (2018) | Stops it | - | Stops it |
-| PyTorch confusion (2022) | Stops it | Limits blast radius | Stops it |
-| 3CX (2023) | Stops it | - | Stops it |
-| PyPI typosquatting (ongoing) | Stops it | - | Stops it |
+| Attack | Date | Digest Pinning | Secret Scoping | Drift Detection | Scope |
+|---|---|:---:|:---:|:---:|---|
+| tj-actions + reviewdog | Mar 2025 | Stops it | Limits blast radius | Stops it | **Direct** |
+| PyTorch confusion | Dec 2022 | Stops it | Limits blast radius | Stops it | **Direct** |
+| Codecov | Jan-Apr 2021 | Stops it | Limits blast radius | Stops it | **Direct** |
+| ua-parser-js | Oct 2021 | Stops it | - | Stops it | **Direct** |
+| event-stream | Nov 2018 | Stops it | - | Stops it | **Direct** |
+| PyPI typosquatting | 2022-2025 | Stops it | - | Stops it | **Direct** |
+| xz/liblzma | Mar 2024 | Only if in CI deps | - | Only if in CI deps | Indirect |
+| 3CX | Mar 2023 | Only if in CI deps | - | Only if in CI deps | Indirect |
+| SolarWinds | Dec 2020 | Only if in CI deps | - | Only if in CI deps | Indirect |
 
-**Digest pinning alone stops 9/9 attacks. Secret scoping provides defense-in-depth for the 3 attacks that specifically target CI secrets.**
-
----
-
-## Quick Start
-
-### Install
-
-```bash
-# Binary (Linux/macOS)
-curl -sSL https://scg.bds421.com/install.sh | sh
-
-# Go
-go install gitlab2024.bds421-cloud.com/bds421/rho/supply-chain-guardian/cmd/scg@latest
-
-# From source
-git clone https://github.com/bds421/supply-chain-guardian.git
-cd supply-chain-guardian && make build
-```
-
-### Lock your dependencies
-
-```bash
-# Scan workflows and create scg.lock
-scg init
-
-# Commit the lockfile
-git add scg.lock && git commit -m "Add supply chain lockfile"
-```
-
-### Verify in CI
-
-```yaml
-# .github/workflows/ci.yml
-jobs:
-  build:
-    steps:
-      # Verify all dependencies before anything runs
-      - uses: bds421/scg-action@v1
-        with:
-          mode: check
-
-      # Scope secrets before each sensitive step
-      - uses: bds421/scg-action@v1
-        with:
-          mode: scope
-          step-name: trivy-scan
-
-      - uses: aquasecurity/trivy-action@sha256:57a97c7e...
-```
-
-### Catch a tag hijack
-
-```bash
-$ scg check
-
-  CRITICAL DRIFT DETECTED
-
-  aquasecurity/trivy-action@v1
-    Locked:  sha256:57a97c7e7821a5776cebc9bb87c984fa
-    Live:    sha256:ff00bad1337cafe0000000000000000000
-    Status:  TAG HIJACK - same tag, different commit
-
-  Build HALTED. Exit code: 1
-```
+**7 of 10 attacks directly stopped. The remaining 3 targeted build infrastructure or system packages — SCG would only help if the compromised artifact entered your CI pipeline as a tracked dependency.**
 
 ---
 
@@ -356,7 +288,7 @@ $ scg check
 
 ### Layer 1: Manifest Enforcement
 
-SCG resolves every mutable reference (tags, branches, version strings) to an immutable content digest and records it in `scg.lock`. On every CI run, `scg check` re-resolves and compares. If any digest changed without a version bump, the build halts.
+SCG resolves every mutable reference to an immutable content digest and records it in `scg.lock`. On every CI run, `scg check` re-resolves and compares. If any digest changed, the build halts.
 
 ```
 actions/checkout@v4  -->  sha256:b4ffde65...  (immutable)
@@ -365,7 +297,7 @@ trivy-action@v1      -->  sha256:57a97c7e...  (immutable)
 
 ### Layer 2: Secret Scoping
 
-Each CI tool has a **security profile** defining what secrets it legitimately needs. Before a step runs, `scg scope` strips any secrets the tool shouldn't see.
+Each CI tool has a **security profile** defining what secrets it legitimately needs. `scg scope` strips anything the tool shouldn't see.
 
 ```
 trivy-action profile:
@@ -373,16 +305,9 @@ trivy-action profile:
   Forbids:  PYPI_*, NPM_TOKEN, DOCKER_HUB_PASSWORD, AWS_SECRET_*
 ```
 
-Even if Trivy is compromised, the PyPI token was never in its environment.
+### Temporal Knowledge Graph
 
-### Powered by a Temporal Knowledge Graph
-
-Under the hood, SCG models your dependency graph using a [temporal knowledge graph](doc/architecture.md). Dependencies, digests, secrets, and their relationships are tracked over time. Drift detection is a temporal query, not a string comparison.
-
-This means SCG can answer questions like:
-- "When did this tag last change?" (temporal history)
-- "What's the blast radius if this action is compromised?" (graph traversal)
-- "Has this tool been stable for 30 days?" (temporal reasoning)
+Under the hood, SCG models dependencies as a [temporal knowledge graph](doc/architecture.md). Drift detection is a temporal query, not a string comparison. This enables: resolution history, blast radius analysis, and temporal reasoning ("has this tool been stable for 30 days?").
 
 ---
 
@@ -397,107 +322,72 @@ This means SCG can answer questions like:
 | `scg audit` | Full security report (drift + secret exposure) | 0 = clean, 1 = issues |
 | `scg version` | Print version | 0 |
 
----
-
 ## Configuration
 
-SCG is zero-config by default. Optional environment variables:
+Zero-config by default. Optional environment variables:
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `GITHUB_TOKEN` | (none) | GitHub API authentication (avoids rate limits) |
+| `GITHUB_TOKEN` | (none) | GitHub API auth (60/hr without, 5,000/hr with) |
 | `SCG_API_KEY` | (none) | SCG Platform subscription key |
 | `SCG_LOCKFILE` | `scg.lock` | Lockfile path |
 | `SCG_WORKFLOW_DIR` | `.github/workflows` | Workflow directory |
-| `SCG_LOG_LEVEL` | `info` | Log level (debug, info, warn, error) |
+| `SCG_LOG_LEVEL` | `info` | debug, info, warn, error |
 
----
+## Supported Ecosystems
+
+| Ecosystem | Config Files | Status |
+|---|---|---|
+| GitHub Actions | `.github/workflows/*.yml` | Implemented |
+| Docker | `Dockerfile` | Planned |
+| PyPI | `requirements.txt`, `pyproject.toml` | Planned |
+| npm | `package.json`, `package-lock.json` | Planned |
+| Go | `go.mod`, `go.sum` | Planned |
+| Helm | `Chart.yaml` | Planned |
 
 ## SCG Platform
 
-The open-source CLI resolves dependencies locally. The **SCG Platform** (optional subscription) adds:
-
-| Feature | Free (CLI) | Pro (Platform) |
-|---|---|---|
-| Local dependency scanning | Unlimited | Unlimited |
-| Pre-computed hashes (no API rate limits) | - | Instant |
-| Curated security profiles | Top 50 embedded | Thousands |
-| Continuous drift monitoring | At CI time only | Real-time alerts |
-| Resolution history | - | 90-day temporal history |
-| Dashboard | - | Web UI across all repos |
+The CLI resolves dependencies locally. The **SCG Platform** (optional subscription) adds pre-computed hashes, thousands of curated security profiles, continuous drift monitoring with real-time alerts, 90-day resolution history, and a web dashboard.
 
 ```bash
-# Enable platform (one env var)
 export SCG_API_KEY=scg_live_xxx
-scg check  # now uses pre-computed hashes + full profile library
+scg check  # now uses platform data
 ```
 
 ---
 
-## Supported Ecosystems
+## Documentation
 
-| Ecosystem | Parser | Resolver | Status |
-|---|---|---|---|
-| GitHub Actions | `.github/workflows/*.yml` | GitHub API (tag -> SHA) | Phase 1 |
-| Docker | `Dockerfile` | Docker Registry API | Phase 2 |
-| PyPI | `requirements.txt`, `pyproject.toml` | PyPI API | Phase 2 |
-| npm | `package.json`, `package-lock.json` | npm Registry | Phase 2 |
-| Go | `go.mod`, `go.sum` | go.sum delegation | Phase 2 |
-| Helm | `Chart.yaml` | Helm Chart Registry | Phase 3 |
-
----
-
-## Architecture
-
-SCG is built on a temporal knowledge graph ([TKG](https://gitlab2024.bds421-cloud.com/bds421/rho/tkg/v3)) with a [Cypher query engine](https://gitlab2024.bds421-cloud.com/bds421/sigma/tkgd). The graph is invisible to users but enables powerful security analysis.
-
-See [doc/architecture.md](doc/architecture.md) for the full technical design.
-
----
+| Document | Contents |
+|---|---|
+| [Architecture](doc/architecture.md) | Graph schema, data flow, storage backends, signing model |
+| [Security Model](doc/security-model.md) | Threat model, trust boundaries, input validation |
+| [Getting Started](doc/getting-started.md) | Installation, first run, CI integration, troubleshooting |
+| [Lockfile Spec](doc/lockfile-spec.md) | `scg.lock` format, fields, signing, versioning |
+| [SKILL.md](SKILL.md) | Agent/tool integration interface |
 
 ## Development
 
 ```bash
-# Build
-make build
-
-# Test
-make test
-
-# Full CI check
-make ci
-
-# Coverage report
-make cover
+make build    # compile binary
+make test     # unit tests
+make ci       # full: fmt + vet + build + race tests
+make cover    # coverage report
 ```
 
 Requirements: Go 1.26+
 
----
-
 ## Contributing
 
-Contributions are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md) before submitting a pull request.
-
-**Priority areas:**
-- New ecosystem parsers and resolvers
-- Security profile contributions (DSM profiles)
-- CI/CD platform integrations
-- Documentation improvements
-
----
+See [CONTRIBUTING.md](CONTRIBUTING.md). Priority areas: ecosystem parsers/resolvers, security profiles, CI platform integrations.
 
 ## Security
 
-SCG is a security tool. We take its own security seriously.
+- **Vulnerabilities:** security@bds421.com
+- **Signing:** ed25519 + OIDC keyless (planned)
+- **Dependencies:** minimal tree, audited with `govulncheck`
 
-- **Reporting vulnerabilities:** Email security@bds421.dev with details
-- **Signing:** All releases are signed. Lockfiles support ed25519 and OIDC keyless signatures
-- **Dependencies:** Minimal dependency tree. All deps audited with `govulncheck`
-
-See [doc/security-model.md](doc/security-model.md) for the full threat model.
-
----
+See [doc/security-model.md](doc/security-model.md).
 
 ## License
 
