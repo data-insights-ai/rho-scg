@@ -323,14 +323,14 @@ Zero-config by default. Optional environment variables:
 
 ## Supported Ecosystems
 
-| Ecosystem | Config Files | Status |
-|---|---|---|
-| GitHub Actions | `.github/workflows/*.yml` | Implemented |
-| Docker | `Dockerfile` | Planned |
-| PyPI | `requirements.txt`, `pyproject.toml` | Planned |
-| npm | `package.json`, `package-lock.json` | Planned |
-| Go | `go.mod`, `go.sum` | Planned |
-| Helm | `Chart.yaml` | Planned |
+| Ecosystem | Config Files | Resolver | Status |
+|---|---|---|---|
+| GitHub Actions | `.github/workflows/*.yml` | GitHub API (tag -> SHA) | Implemented |
+| Docker | `Dockerfile` | Docker Registry V2 API (tag -> manifest digest) | Implemented |
+| PyPI | `requirements.txt`, `pyproject.toml` | PyPI JSON API (version -> SHA256) | Implemented |
+| npm | `package.json`, `package-lock.json` | npm Registry (version -> integrity hash) | Implemented |
+| Go | `go.mod`, `go.sum` | go.sum delegation | Planned |
+| Helm | `Chart.yaml` | Helm Chart Registry | Planned |
 
 ## SCG Platform
 
@@ -347,10 +347,11 @@ scg check  # now uses platform data
 
 | Document | Contents |
 |---|---|
-| [Architecture](doc/architecture.md) | Graph schema, data flow, storage backends, signing model |
+| [Architecture](doc/architecture.md) | Graph schema, data flow, storage backends |
 | [Security Model](doc/security-model.md) | Threat model, trust boundaries, input validation |
-| [Getting Started](doc/getting-started.md) | Installation, first run, CI integration, troubleshooting |
-| [Lockfile Spec](doc/lockfile-spec.md) | `scg.lock` format, fields, signing, versioning |
+| [OIDC Signing](doc/oidc-signing.md) | Keyless signing with CI OIDC tokens |
+| [Getting Started](doc/getting-started.md) | Installation, first run, CI integration |
+| [Lockfile Spec](doc/lockfile-spec.md) | `scg.lock` format, fields, signing |
 | [SKILL.md](SKILL.md) | Agent/tool integration interface |
 
 ## Development

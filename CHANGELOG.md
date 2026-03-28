@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.7] - 2026-03-28
+
+### Added
+- **Docker ecosystem**: Dockerfile parser (FROM directives) + Docker Registry V2 resolver (tag -> manifest digest)
+- **PyPI ecosystem**: resolver (version -> SHA256 via PyPI JSON API)
+- **npm ecosystem**: resolver (version -> integrity hash via npm registry), supports scoped packages
+- **OIDC keyless signing**: auto-detects OIDC tokens from GitHub Actions, GitLab CI, or generic env. Generates ephemeral ed25519 keypair, embeds OIDC issuer + subject in signature. Falls back to ed25519 if no OIDC available.
+- Expanded DSM profiles from 10 to 30: added AWS configure-credentials, GCP auth, Azure login, Docker login/setup-buildx/metadata, GitHub CodeQL, Codecov, SonarCloud, HashiCorp setup-terraform, Helm chart-releaser, softprops gh-release, Slack notification, GoReleaser, peter-evans create-pull-request, actions setup-java/setup-dotnet/github-script/create-release/deploy-pages
+- Documentation: `doc/oidc-signing.md` — complete guide to keyless signing
+- 17 new tests (parser: 7 Dockerfile, resolver: 7 Docker/PyPI/npm, manifest: 3 OIDC)
+
+### Changed
+- Signing auto-selects: OIDC keyless in CI, ed25519 fallback locally
+- Ed25519 verifier now accepts both `ed25519` and `oidc+ed25519` algorithms
+- README ecosystems table updated to reflect implemented resolvers
+
 ## [0.1.6] - 2026-03-28
 
 ### Added

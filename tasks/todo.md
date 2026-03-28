@@ -66,10 +66,11 @@
 
 ## Phase 2: Signing + Additional Ecosystems
 
-- [ ] OIDC keyless signing (GitHub Actions OIDC token)
-- [ ] Docker resolver (tag → manifest digest)
-- [ ] Dockerfile parser (FROM directives)
-- [ ] PyPI resolver (version → hash)
-- [ ] npm resolver (version → integrity hash)
-- [ ] Expand embedded profiles to top 30
+- [x] OIDC keyless signing (auto-detect GitHub Actions / GitLab CI / generic OIDC token, ed25519 fallback)
+- [x] Docker resolver (tag → manifest digest via Docker Registry V2 API)
+- [x] Dockerfile parser (FROM directives, multi-stage builds, AS aliases, digest refs)
+- [x] PyPI resolver (name==version → SHA256 via PyPI JSON API)
+- [x] npm resolver (name@version → integrity hash, supports scoped packages)
+- [x] Expand embedded profiles to top 30 (AWS, GCP, Azure, Docker, CodeQL, Codecov, SonarCloud, etc.)
 - [ ] IMDS blocker for cloud runners
+- [x] 55 tests total, race detector clean

@@ -76,12 +76,24 @@ func doInit(ctx context.Context, logger *slog.Logger, workflowDir, lockfilePath 
 	// 9. Build lockfile from parsed + resolved data.
 	lf := buildLockfile(workflows, resolved)
 
-	// 10. Sign lockfile.
-	_, privKey, err := ed25519.GenerateKey(rand.Reader)
-	if err != nil {
-		return fmt.Errorf("generate signing key: %w", err)
+	// 10. Sign lockfile (OIDC keyless if available, ed25519 fallback).
+	var signer manifest.Signer
+	if manifest.IsOIDCAvailable() {
+		oidcSigner, err := manifest.NewOIDCSigner()
+		if err != nil {
+			logger.Warn("OIDC signing failed, falling back to ed25519", "err", err)
+		} else {
+			signer = oidcSigner
+			logger.Info("signing with OIDC keyless", "issuer", oidcSigner.Issuer())
+		}
 	}
-	signer := manifest.NewEd25519Signer(privKey)
+	if signer == nil {
+		_, privKey, err := ed25519.GenerateKey(rand.Reader)
+		if err != nil {
+			return fmt.Errorf("generate signing key: %w", err)
+		}
+		signer = manifest.NewEd25519Signer(privKey)
+	}
 	if err := manifest.SignLockfile(lf, signer); err != nil {
 		return fmt.Errorf("sign lockfile: %w", err)
 	}

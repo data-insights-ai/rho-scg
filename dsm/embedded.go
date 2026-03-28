@@ -149,6 +149,248 @@ var EmbeddedProfiles = []ProfileDef{
 			{Regex: `SSH_PRIVATE_KEY`, Reason: "PyPI publish does not need SSH access"},
 		},
 	},
+	// --- Additional profiles (11-30) ---
+	{
+		Ecosystem: "github_action",
+		Reference: "actions/setup-java",
+		Owner:     "actions",
+		Name:      "setup-java",
+		RiskTier:  TierLow,
+	},
+	{
+		Ecosystem: "github_action",
+		Reference: "actions/setup-dotnet",
+		Owner:     "actions",
+		Name:      "setup-dotnet",
+		RiskTier:  TierLow,
+	},
+	{
+		Ecosystem: "github_action",
+		Reference: "actions/github-script",
+		Owner:     "actions",
+		Name:      "github-script",
+		RiskTier:  TierMedium,
+		RequiredSecrets: []SecretRequirement{
+			{Name: "GITHUB_TOKEN", Permissions: "varies", Required: true},
+		},
+	},
+	{
+		Ecosystem: "github_action",
+		Reference: "actions/create-release",
+		Owner:     "actions",
+		Name:      "create-release",
+		RiskTier:  TierHigh,
+		RequiredSecrets: []SecretRequirement{
+			{Name: "GITHUB_TOKEN", Permissions: "contents:write", Required: true},
+		},
+		ForbiddenPatterns: []PatternDef{
+			{Regex: `PYPI.*`, Reason: "Release creation does not need PyPI credentials"},
+			{Regex: `NPM_TOKEN`, Reason: "Release creation does not need npm credentials"},
+		},
+	},
+	{
+		Ecosystem: "github_action",
+		Reference: "actions/deploy-pages",
+		Owner:     "actions",
+		Name:      "deploy-pages",
+		RiskTier:  TierMedium,
+		RequiredSecrets: []SecretRequirement{
+			{Name: "GITHUB_TOKEN", Permissions: "pages:write", Required: true},
+		},
+	},
+	{
+		Ecosystem: "github_action",
+		Reference: "aws-actions/configure-aws-credentials",
+		Owner:     "aws-actions",
+		Name:      "configure-aws-credentials",
+		RiskTier:  TierHigh,
+		RequiredSecrets: []SecretRequirement{
+			{Name: "AWS_ACCESS_KEY_ID", Required: true},
+			{Name: "AWS_SECRET_ACCESS_KEY", Required: true},
+		},
+		ForbiddenPatterns: []PatternDef{
+			{Regex: `PYPI.*`, Reason: "AWS auth does not need PyPI credentials"},
+			{Regex: `NPM_TOKEN`, Reason: "AWS auth does not need npm credentials"},
+			{Regex: `DOCKER_HUB.*`, Reason: "AWS auth does not need Docker Hub credentials"},
+		},
+	},
+	{
+		Ecosystem: "github_action",
+		Reference: "google-github-actions/auth",
+		Owner:     "google-github-actions",
+		Name:      "auth",
+		RiskTier:  TierHigh,
+		RequiredSecrets: []SecretRequirement{
+			{Name: "GCP_CREDENTIALS", Required: false},
+		},
+		ForbiddenPatterns: []PatternDef{
+			{Regex: `PYPI.*`, Reason: "GCP auth does not need PyPI credentials"},
+			{Regex: `NPM_TOKEN`, Reason: "GCP auth does not need npm credentials"},
+			{Regex: `AWS_SECRET.*`, Reason: "GCP auth does not need AWS credentials"},
+		},
+	},
+	{
+		Ecosystem: "github_action",
+		Reference: "azure/login",
+		Owner:     "azure",
+		Name:      "login",
+		RiskTier:  TierHigh,
+		RequiredSecrets: []SecretRequirement{
+			{Name: "AZURE_CREDENTIALS", Required: true},
+		},
+		ForbiddenPatterns: []PatternDef{
+			{Regex: `PYPI.*`, Reason: "Azure auth does not need PyPI credentials"},
+			{Regex: `AWS_SECRET.*`, Reason: "Azure auth does not need AWS credentials"},
+			{Regex: `GCP_CREDENTIALS`, Reason: "Azure auth does not need GCP credentials"},
+		},
+	},
+	{
+		Ecosystem: "github_action",
+		Reference: "docker/login-action",
+		Owner:     "docker",
+		Name:      "login-action",
+		RiskTier:  TierHigh,
+		RequiredSecrets: []SecretRequirement{
+			{Name: "DOCKER_HUB_TOKEN", Required: false},
+			{Name: "GITHUB_TOKEN", Permissions: "packages:write", Required: false},
+		},
+	},
+	{
+		Ecosystem: "github_action",
+		Reference: "docker/setup-buildx-action",
+		Owner:     "docker",
+		Name:      "setup-buildx-action",
+		RiskTier:  TierLow,
+	},
+	{
+		Ecosystem: "github_action",
+		Reference: "docker/metadata-action",
+		Owner:     "docker",
+		Name:      "metadata-action",
+		RiskTier:  TierLow,
+	},
+	{
+		Ecosystem: "github_action",
+		Reference: "github/codeql-action",
+		Owner:     "github",
+		Name:      "codeql-action",
+		RiskTier:  TierMedium,
+		RequiredSecrets: []SecretRequirement{
+			{Name: "GITHUB_TOKEN", Permissions: "security-events:write", Required: true},
+		},
+		ForbiddenPatterns: []PatternDef{
+			{Regex: `PYPI.*`, Reason: "CodeQL does not publish packages"},
+			{Regex: `NPM_TOKEN`, Reason: "CodeQL does not publish packages"},
+			{Regex: `AWS_SECRET.*`, Reason: "CodeQL does not need cloud credentials"},
+		},
+	},
+	{
+		Ecosystem: "github_action",
+		Reference: "codecov/codecov-action",
+		Owner:     "codecov",
+		Name:      "codecov-action",
+		RiskTier:  TierMedium,
+		RequiredSecrets: []SecretRequirement{
+			{Name: "CODECOV_TOKEN", Required: true},
+		},
+		ForbiddenPatterns: []PatternDef{
+			{Regex: `PYPI.*`, Reason: "Codecov does not publish packages"},
+			{Regex: `NPM_TOKEN`, Reason: "Codecov does not publish packages"},
+			{Regex: `AWS_SECRET.*`, Reason: "Codecov does not need cloud credentials"},
+			{Regex: `SSH_PRIVATE_KEY`, Reason: "Codecov does not need SSH access"},
+			{Regex: `DOCKER_HUB.*`, Reason: "Codecov does not need Docker credentials"},
+		},
+	},
+	{
+		Ecosystem: "github_action",
+		Reference: "sonarsource/sonarcloud-github-action",
+		Owner:     "sonarsource",
+		Name:      "sonarcloud-github-action",
+		RiskTier:  TierMedium,
+		RequiredSecrets: []SecretRequirement{
+			{Name: "SONAR_TOKEN", Required: true},
+			{Name: "GITHUB_TOKEN", Permissions: "pull-requests:write", Required: true},
+		},
+		ForbiddenPatterns: []PatternDef{
+			{Regex: `PYPI.*`, Reason: "SonarCloud does not publish packages"},
+			{Regex: `NPM_TOKEN`, Reason: "SonarCloud does not publish packages"},
+			{Regex: `AWS_SECRET.*`, Reason: "SonarCloud does not need cloud credentials"},
+		},
+	},
+	{
+		Ecosystem: "github_action",
+		Reference: "hashicorp/setup-terraform",
+		Owner:     "hashicorp",
+		Name:      "setup-terraform",
+		RiskTier:  TierLow,
+	},
+	{
+		Ecosystem: "github_action",
+		Reference: "helm/chart-releaser-action",
+		Owner:     "helm",
+		Name:      "chart-releaser-action",
+		RiskTier:  TierCritical,
+		RequiredSecrets: []SecretRequirement{
+			{Name: "GITHUB_TOKEN", Permissions: "contents:write", Required: true},
+		},
+	},
+	{
+		Ecosystem: "github_action",
+		Reference: "softprops/action-gh-release",
+		Owner:     "softprops",
+		Name:      "action-gh-release",
+		RiskTier:  TierHigh,
+		RequiredSecrets: []SecretRequirement{
+			{Name: "GITHUB_TOKEN", Permissions: "contents:write", Required: true},
+		},
+		ForbiddenPatterns: []PatternDef{
+			{Regex: `PYPI.*`, Reason: "GitHub release does not need PyPI credentials"},
+			{Regex: `NPM_TOKEN`, Reason: "GitHub release does not need npm credentials"},
+		},
+	},
+	{
+		Ecosystem: "github_action",
+		Reference: "slackapi/slack-github-action",
+		Owner:     "slackapi",
+		Name:      "slack-github-action",
+		RiskTier:  TierMedium,
+		RequiredSecrets: []SecretRequirement{
+			{Name: "SLACK_WEBHOOK_URL", Required: true},
+		},
+		ForbiddenPatterns: []PatternDef{
+			{Regex: `PYPI.*`, Reason: "Slack notification does not need package credentials"},
+			{Regex: `AWS_SECRET.*`, Reason: "Slack notification does not need cloud credentials"},
+			{Regex: `SSH_PRIVATE_KEY`, Reason: "Slack notification does not need SSH access"},
+		},
+	},
+	{
+		Ecosystem: "github_action",
+		Reference: "goreleaser/goreleaser-action",
+		Owner:     "goreleaser",
+		Name:      "goreleaser-action",
+		RiskTier:  TierCritical,
+		RequiredSecrets: []SecretRequirement{
+			{Name: "GITHUB_TOKEN", Permissions: "contents:write", Required: true},
+		},
+		ForbiddenPatterns: []PatternDef{
+			{Regex: `PYPI.*`, Reason: "GoReleaser does not publish Python packages"},
+			{Regex: `NPM_TOKEN`, Reason: "GoReleaser does not publish npm packages"},
+		},
+	},
+	{
+		Ecosystem: "github_action",
+		Reference: "peter-evans/create-pull-request",
+		Owner:     "peter-evans",
+		Name:      "create-pull-request",
+		RiskTier:  TierMedium,
+		RequiredSecrets: []SecretRequirement{
+			{Name: "GITHUB_TOKEN", Permissions: "pull-requests:write,contents:write", Required: true},
+		},
+		ForbiddenPatterns: []PatternDef{
+			{Regex: `PYPI.*`, Reason: "PR creation does not need package credentials"},
+			{Regex: `AWS_SECRET.*`, Reason: "PR creation does not need cloud credentials"},
+		},
+	},
 }
 
 // Bootstrap populates the graph with embedded security profiles.

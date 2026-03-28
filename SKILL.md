@@ -136,11 +136,18 @@ SCG models dependencies as a temporal knowledge graph:
 - **Nodes:** Tool, Digest, Step, Secret, Pipeline, Profile, SecretPattern
 - **Key relationship:** `RESOLVES_TO` (Tool -> Digest) is temporal — carries ValidFrom/ValidTo timestamps enabling drift detection over time
 
-## Limitations (current, v0.1.6)
+## Current Status (v0.1.7)
 
 - All 5 commands working: `init`, `check`, `update`, `scope`, `audit`
-- `--json` flag available on init, check, scope, audit
-- `--strict` flag on check and scope for fail-closed mode
-- Only GitHub Actions ecosystem is implemented (Docker, PyPI, npm planned)
-- OIDC keyless signing is designed but not yet implemented (ed25519 works)
-- Platform API integration is stubbed
+- 4 ecosystems: GitHub Actions, Docker, PyPI, npm
+- OIDC keyless signing (auto-detects CI OIDC tokens, ed25519 fallback)
+- 30 embedded security profiles
+- `--json` flag, `--strict` flag, colored terminal output
+- 55 tests, race detector clean
+
+## Limitations
+
+- Go and Helm ecosystems not yet implemented
+- Platform API integration is stubbed (local resolution only)
+- OIDC signing does not yet verify JWT via JWKS at check time
+- No transparency log integration yet

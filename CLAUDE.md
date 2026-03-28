@@ -124,14 +124,15 @@ internal/testutil  TestGraph(t) helper
 - Every public function gets a direct test
 - Coverage gate: 80% per package
 
-## Current State (v0.1.6)
+## Current State (v0.1.7)
 
 - All 5 commands working: `init`, `check`, `update`, `scope`, `audit`
-- `--json` flag for machine-readable output
-- `--strict` flag for fail-closed mode (unsigned lockfiles rejected, warnings as errors)
-- Colored terminal output (ANSI, auto-detect via x/term)
-- 38 tests across 6 packages, race detector clean
-- Phase 1 complete. Next: Phase 2 (OIDC signing, Docker/PyPI/npm ecosystems)
+- 4 ecosystems: GitHub Actions, Docker, PyPI, npm
+- OIDC keyless signing (auto-detects CI tokens, ed25519 fallback)
+- 30 embedded DSM security profiles
+- `--json` flag, `--strict` flag, colored output
+- 55 tests across 6 packages, race detector clean
+- Phase 2 complete. Next: Phase 3 (Platform MVP)
 - See `tasks/todo.md` for checklist
 - See `tasks/todo.platform` for Platform roadmap
 
