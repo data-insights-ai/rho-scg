@@ -1,0 +1,75 @@
+# SCG CLI — Phase 1 Task List
+
+## Phase 1a: Foundation (Week 1)
+
+- [x] Project scaffold (go.mod, directories, Makefile, CLAUDE.md)
+- [x] Graph schema (graph/schema.go — labels, rel types, NewGraph, EnsureIndexes)
+- [x] Store factory (graph/store.go — memory + badger config)
+- [x] Cypher query constants (graph/queries.go)
+- [x] Resolver interface (resolver/resolver.go)
+- [x] Parser interface (parser/parser.go)
+- [x] Lockfile data model (manifest/manifest.go)
+- [x] Lockfile read/write (manifest/lock.go)
+- [x] Signing interface + ed25519 (manifest/sign.go)
+- [x] Drift detection types (manifest/drift.go)
+- [x] DSM embedded profiles (dsm/embedded.go — top 10)
+- [x] Scoper interface (scoper/scoper.go)
+- [x] Env scanner (scoper/env.go)
+- [x] GitHub resolver (resolver/github.go)
+- [x] Workflow parser (parser/workflow.go)
+- [x] Platform client stub (platform/)
+- [x] Config model (internal/config/)
+- [x] Test helpers (internal/testutil/)
+- [x] CLI skeleton (cmd/scg/main.go)
+- [ ] Verify build compiles
+
+## Phase 1b: Working `scg init` (Week 1-2)
+
+- [ ] Wire parser: discover + parse workflow files
+- [ ] Wire resolver: resolve each tool reference via GitHub API
+- [ ] Wire graph: populate Tool, Digest, Step, Secret, Pipeline nodes
+- [ ] Wire graph: create RESOLVES_TO (temporal), USES, HAS_ACCESS relationships
+- [ ] Bootstrap DSM profiles into graph before scan
+- [ ] Generate lockfile from graph state
+- [ ] Sign lockfile with ed25519
+- [ ] Integration test: `scg init` on a sample workflow
+- [ ] Verify `scg init` produces correct scg.lock
+
+## Phase 1c: Working `scg check` (Week 2)
+
+- [ ] Read and verify lockfile signature
+- [ ] Re-resolve each tool reference
+- [ ] Compare live digests against locked digests
+- [ ] Report drift with severity levels
+- [ ] Exit code: 0 = clean, 1 = drift detected
+- [ ] Integration test: detect simulated tag hijack
+- [ ] Test: `scg check` on clean state returns 0
+
+## Phase 1d: Working `scg scope` (Week 2)
+
+- [ ] Scan current environment for secret-like variables
+- [ ] Populate Secret nodes in graph from env scan
+- [ ] Query graph for forbidden patterns
+- [ ] Report violations (blocked secrets)
+- [ ] Integration test: detect PYPI_TOKEN in trivy-scan step
+
+## Phase 1e: Polish (Week 2)
+
+- [ ] `scg update` implementation
+- [ ] `scg audit` implementation (init + scope combined)
+- [ ] Error messages: clear, actionable, no stack traces
+- [ ] Output formatting: colored terminal output
+- [ ] Add --json flag for machine-readable output
+- [ ] Add --strict flag for fail-closed mode
+- [ ] Unit tests for all packages (80% coverage gate)
+- [ ] Race detector clean (`make test-race`)
+
+## Phase 2: Signing + Additional Ecosystems
+
+- [ ] OIDC keyless signing (GitHub Actions OIDC token)
+- [ ] Docker resolver (tag → manifest digest)
+- [ ] Dockerfile parser (FROM directives)
+- [ ] PyPI resolver (version → hash)
+- [ ] npm resolver (version → integrity hash)
+- [ ] Expand embedded profiles to top 30
+- [ ] IMDS blocker for cloud runners

@@ -1,0 +1,33 @@
+module gitlab2024.bds421-cloud.com/bds421/rho/supply-chain-guardian
+
+go 1.26.1
+
+require (
+	gitlab2024.bds421-cloud.com/bds421/rho/tkg/v3 v3.1.2
+	gitlab2024.bds421-cloud.com/bds421/sigma/tkgd v0.5.8
+	gopkg.in/yaml.v3 v3.0.1
+)
+
+require (
+	github.com/bds421/rho-kit/core/apperror v1.0.0 // indirect
+	github.com/bds421/rho-mclock v0.2.1 // indirect
+	github.com/bds421/rho-snowflake-2026 v1.3.2 // indirect
+	github.com/cespare/xxhash/v2 v2.3.0 // indirect
+	github.com/dgraph-io/badger/v4 v4.9.1 // indirect
+	github.com/dgraph-io/ristretto/v2 v2.4.0 // indirect
+	github.com/dustin/go-humanize v1.0.1 // indirect
+	github.com/go-logr/logr v1.4.3 // indirect
+	github.com/go-logr/stdr v1.2.2 // indirect
+	github.com/google/flatbuffers v25.2.10+incompatible // indirect
+	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
+	github.com/klauspost/compress v1.18.4 // indirect
+	github.com/vmihailenco/msgpack/v5 v5.4.1 // indirect
+	github.com/vmihailenco/tagparser/v2 v2.0.0 // indirect
+	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
+	go.opentelemetry.io/otel v1.42.0 // indirect
+	go.opentelemetry.io/otel/metric v1.42.0 // indirect
+	go.opentelemetry.io/otel/trace v1.42.0 // indirect
+	golang.org/x/net v0.52.0 // indirect
+	golang.org/x/sys v0.42.0 // indirect
+	google.golang.org/protobuf v1.36.11 // indirect
+)
