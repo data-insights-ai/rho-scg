@@ -131,7 +131,7 @@ internal/testutil  TestGraph(t) helper
 - OIDC keyless signing (auto-detects CI tokens, ed25519 fallback)
 - 30 embedded DSM security profiles
 - `--json` flag, `--strict` flag, colored output
-- 101 tests across 6 packages (including adversarial, network failure, graph correctness), race clean
+- 122 tests + 4 fuzz targets across 6 packages (concurrent, adversarial, network, graph, OIDC, filesystem), race clean
 - Phase 2 complete. Next: Phase 3 (Platform MVP)
 - See `tasks/todo.md` for checklist
 - See `tasks/todo.platform` for Platform roadmap

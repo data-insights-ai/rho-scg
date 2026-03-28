@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.9] - 2026-03-28
+
+### Added
+- **Concurrent resolver tests**: 20 goroutines resolving different tools, 10 resolving same tool, parse function thread safety (200 concurrent calls), all race-clean
+- **OIDC JWT verification**: `VerifyOIDCClaims()` validates expiration, not-before (with 30s skew tolerance), issuer presence. 6 new tests (valid, expired, not-yet-valid, missing issuer, no expiration, skew tolerance)
+- **Real registry integration tests** (build tag `integration`): Docker Hub alpine+nginx, PyPI requests, npm express — all verified against live registries
+- **Filesystem edge cases**: read-only directory, symlink traversal, /dev/null, long paths, overwrite behavior
+- **Fuzz tests**: Go native fuzzing for workflow parser, Dockerfile parser, and all reference parsers (action, Docker, PyPI, npm). Millions of random inputs, zero panics found.
+
+122 tests (up from 101), race detector clean, 4 fuzz targets.
+
 ## [0.1.8] - 2026-03-28
 
 ### Added
