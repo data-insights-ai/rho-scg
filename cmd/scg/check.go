@@ -11,22 +11,24 @@ import (
 )
 
 // doCheck validates a lockfile against live resolution.
-func doCheck(ctx context.Context, logger *slog.Logger, lockfilePath, ghToken string) error {
+func doCheck(ctx context.Context, logger *slog.Logger, lockfilePath, ghToken string, strict bool) error {
 	// 1. Read lockfile.
 	lf, err := manifest.ReadLockfile(lockfilePath)
 	if err != nil {
 		return fmt.Errorf("read lockfile: %w", err)
 	}
-	logger.Info("loaded lockfile", "path", lockfilePath, "version", lf.Version)
 
 	// 2. Verify signature (skip if unsigned).
 	if lf.Signature != nil {
 		if err := manifest.VerifyLockfile(lf, &manifest.Ed25519Verifier{}); err != nil {
 			return fmt.Errorf("signature verification failed: %w", err)
 		}
-		logger.Info("signature verified")
+		printSuccess(os.Stdout, "Signature verified")
 	} else {
-		logger.Warn("lockfile is not signed")
+		if strict {
+			return fmt.Errorf("lockfile is not signed (--strict requires signed lockfile)")
+		}
+		printWarning(os.Stdout, "Lockfile is not signed")
 	}
 
 	// 3. Build resolvers.
@@ -48,20 +50,21 @@ func doCheck(ctx context.Context, logger *slog.Logger, lockfilePath, ghToken str
 				totalTools += len(s.Tools)
 			}
 		}
-		fmt.Fprintf(os.Stdout, "\n  scg check: all %d tool entries verified, no drift detected.\n\n", totalTools)
+		fmt.Fprintln(os.Stdout)
+		printSuccess(os.Stdout, "All %d tool entries verified, no drift detected.", totalTools)
+		fmt.Fprintln(os.Stdout)
 		return nil
 	}
 
-	// Drift found — report and return error (exit 1).
-	fmt.Fprintf(os.Stderr, "\n  CRITICAL DRIFT DETECTED\n\n")
+	// Drift found.
+	fmt.Fprintf(os.Stderr, "\n  %s\n\n", red(bold("CRITICAL DRIFT DETECTED")))
 	for _, d := range results {
-		fmt.Fprintf(os.Stderr, "  %s\n", d.Reference)
-		fmt.Fprintf(os.Stderr, "    Locked:  %s\n", d.LockedHash)
-		fmt.Fprintf(os.Stderr, "    Live:    %s\n", d.LiveHash)
-		fmt.Fprintf(os.Stderr, "    Status:  %s\n", d.Detail)
-		fmt.Fprintf(os.Stderr, "\n")
+		printFailure(os.Stderr, "%s", d.Reference)
+		fmt.Fprintf(os.Stderr, "      Locked: %s\n", dim(d.LockedHash))
+		fmt.Fprintf(os.Stderr, "      Live:   %s\n", dim(d.LiveHash))
+		fmt.Fprintf(os.Stderr, "      %s\n\n", d.Detail)
 	}
-	fmt.Fprintf(os.Stderr, "  Build HALTED. Exit code: 1\n\n")
+	fmt.Fprintf(os.Stderr, "  %s\n\n", red("Build HALTED. Exit code: 1"))
 
 	return fmt.Errorf("drift detected: %d tool(s) changed", len(results))
 }

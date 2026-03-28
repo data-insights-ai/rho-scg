@@ -5,6 +5,7 @@ go 1.26.1
 require (
 	gitlab2024.bds421-cloud.com/bds421/rho/tkg/v3 v3.1.2
 	gitlab2024.bds421-cloud.com/bds421/sigma/tkgd v0.5.8
+	golang.org/x/term v0.41.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 

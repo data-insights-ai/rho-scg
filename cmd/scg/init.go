@@ -470,18 +470,7 @@ func extractBaseRef(reference string) string {
 }
 
 func printInitSummary(w io.Writer, workflows []*parser.WorkflowFile, resolved map[string]*resolver.Resolution, lockfilePath string) {
-	totalSteps := 0
-	secretSet := make(map[string]bool)
-	for _, wf := range workflows {
-		totalSteps += len(wf.Steps)
-		for _, s := range wf.Secrets {
-			secretSet[s.Name] = true
-		}
-	}
-
-	fmt.Fprintf(w, "\n  Scanning complete.\n\n")
-	fmt.Fprintf(w, "  Resolving digests:\n")
-	// Sort for deterministic output.
+	fmt.Fprintf(w, "\n  Resolving digests:\n")
 	refs := make([]string, 0, len(resolved))
 	for ref := range resolved {
 		refs = append(refs, ref)
@@ -489,10 +478,10 @@ func printInitSummary(w io.Writer, workflows []*parser.WorkflowFile, resolved ma
 	sort.Strings(refs)
 	for _, ref := range refs {
 		res := resolved[ref]
-		fmt.Fprintf(w, "    %-40s %s:%s\n", ref, res.Algorithm, res.Hash[:minHashLen(len(res.Hash))])
+		printSuccess(w, "%-40s %s", ref, dim(res.Algorithm+":"+res.Hash[:minHashLen(len(res.Hash))]))
 	}
 
-	fmt.Fprintf(w, "\n  Written: %s (%d entries, signed)\n\n", lockfilePath, len(resolved))
+	fmt.Fprintf(w, "\n  Written: %s (%d entries, signed)\n\n", bold(lockfilePath), len(resolved))
 }
 
 func minHashLen(l int) int {

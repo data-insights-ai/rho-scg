@@ -17,7 +17,7 @@ import (
 )
 
 // doScope audits a step's secret access against its tool's security profile.
-func doScope(ctx context.Context, logger *slog.Logger, workflowDir, stepName string, res resolver.Resolver) error {
+func doScope(ctx context.Context, logger *slog.Logger, workflowDir, stepName string, res resolver.Resolver, strict bool) error {
 	// 1. Discover and parse workflows to find the step and its tool.
 	paths, err := discoverWorkflows(workflowDir)
 	if err != nil {
@@ -42,7 +42,11 @@ func doScope(ctx context.Context, logger *slog.Logger, workflowDir, stepName str
 		}
 	}
 	if stepTool == nil {
-		return fmt.Errorf("step %q not found or has no tool reference", stepName)
+		if strict {
+			return fmt.Errorf("step %q not found or has no tool reference (--strict)", stepName)
+		}
+		printWarning(os.Stdout, "Step %q not found or has no tool reference", stepName)
+		return nil
 	}
 
 	// 2. Resolve the tool.
@@ -168,19 +172,21 @@ func populateScopeGraph(
 }
 
 func printScopeResult(w io.Writer, result *scoper.ScopeResult, tool *parser.ToolRef) {
-	fmt.Fprintf(w, "\n  Step: %s\n", result.StepName)
-	fmt.Fprintf(w, "  Tool: %s\n", tool.Reference)
+	fmt.Fprintf(w, "\n  Step: %s\n", bold(result.StepName))
+	fmt.Fprintf(w, "  Tool: %s\n", cyan(tool.Reference))
 
 	if len(result.Violations) == 0 {
-		fmt.Fprintf(w, "  Status: clean — no forbidden secrets exposed\n\n")
+		printSuccess(w, "No forbidden secrets exposed")
+		fmt.Fprintln(w)
 		return
 	}
 
-	fmt.Fprintf(w, "  Status: %d violation(s) found\n\n", len(result.Violations))
+	printFailure(w, "%d secret violation(s) found", len(result.Violations))
+	fmt.Fprintln(w)
 	for _, v := range result.Violations {
-		fmt.Fprintf(w, "    BLOCKED: %s\n", v.Secret)
-		fmt.Fprintf(w, "      Pattern: %s\n", v.Pattern)
+		fmt.Fprintf(w, "    %s %s\n", red("BLOCKED:"), bold(v.Secret))
+		fmt.Fprintf(w, "      Pattern: %s\n", dim(v.Pattern))
 		fmt.Fprintf(w, "      Reason:  %s\n", v.Reason)
-		fmt.Fprintf(w, "      Tool:    %s\n\n", v.Tool)
+		fmt.Fprintf(w, "      Tool:    %s\n\n", dim(v.Tool))
 	}
 }

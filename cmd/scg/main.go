@@ -100,11 +100,12 @@ func runCheck(ctx context.Context, logger *slog.Logger, args []string) error {
 	fs := flag.NewFlagSet("check", flag.ExitOnError)
 	lockfile := fs.String("lockfile", "scg.lock", "lockfile path")
 	jsonOut := fs.Bool("json", false, "output results as JSON")
+	strict := fs.Bool("strict", false, "fail-closed: reject unsigned lockfiles, treat warnings as errors")
 	fs.Parse(args)
 
 	ghToken := os.Getenv("GITHUB_TOKEN")
 
-	err := doCheck(ctx, logger, *lockfile, ghToken)
+	err := doCheck(ctx, logger, *lockfile, ghToken, *strict)
 	if *jsonOut {
 		result := &JSONResult{Command: "check", Status: "ok", ExitCode: 0}
 		if err != nil {
@@ -135,6 +136,7 @@ func runScope(ctx context.Context, logger *slog.Logger, args []string) error {
 	stepName := fs.String("step", "", "step name to scope (required)")
 	workflowDir := fs.String("workflows", ".github/workflows", "workflow directory to scan")
 	jsonOut := fs.Bool("json", false, "output results as JSON")
+	strict := fs.Bool("strict", false, "fail-closed: treat warnings as errors")
 	fs.Parse(args)
 
 	if *stepName == "" {
@@ -144,7 +146,7 @@ func runScope(ctx context.Context, logger *slog.Logger, args []string) error {
 	ghToken := os.Getenv("GITHUB_TOKEN")
 	res := resolver.NewGitHubResolver(ghToken)
 
-	err := doScope(ctx, logger, *workflowDir, *stepName, res)
+	err := doScope(ctx, logger, *workflowDir, *stepName, res, *strict)
 	if *jsonOut {
 		result := &JSONResult{Command: "scope", Status: "ok", ExitCode: 0}
 		if err != nil {

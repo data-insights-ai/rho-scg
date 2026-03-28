@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.6] - 2026-03-28
+
+### Added
+- `--strict` flag on check and scope: unsigned lockfiles rejected, warnings become errors
+- Colored terminal output: green checkmarks, red X marks, yellow warnings (auto-detect terminal via x/term)
+- Per-package unit tests: parser (4), resolver (4), manifest/lock (3), manifest/sign (5),
+  manifest/drift (4), scoper (4), graph (4), cmd (10) = 38 total tests
+- Race detector clean (`go test -race ./...`)
+
 ## [0.1.5] - 2026-03-28
 
 ### Added

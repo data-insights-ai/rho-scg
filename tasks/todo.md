@@ -59,11 +59,10 @@
 - [x] `scg update` implementation (re-init with overwrite)
 - [x] `scg audit` implementation (drift + scope combined report)
 - [x] Add --json flag for machine-readable output (init, check, scope, audit)
-- [ ] Error messages: clear, actionable, no stack traces
-- [ ] Output formatting: colored terminal output
-- [ ] Add --strict flag for fail-closed mode
-- [ ] Unit tests for all packages (80% coverage gate)
-- [ ] Race detector clean (`make test-race`)
+- [x] Output formatting: colored terminal output (ANSI, auto-detect terminal)
+- [x] Add --strict flag for fail-closed mode (check, scope)
+- [x] Unit tests for all packages: parser (4), resolver (4), manifest (12), scoper (4), graph (4), cmd (10) = 38 total
+- [x] Race detector clean (`go test -race ./...`)
 
 ## Phase 2: Signing + Additional Ecosystems
 

@@ -104,10 +104,8 @@ func printAuditReport(
 	driftResults []manifest.DriftResult,
 	scopeResults []*scoper.ScopeResult,
 ) {
-	fmt.Fprintf(w, "\n  SCG Audit Report\n")
-	fmt.Fprintf(w, "  ================\n\n")
+	fmt.Fprintf(w, "\n  %s\n\n", bold("SCG Audit Report"))
 
-	// Summary.
 	totalSteps := 0
 	for _, wf := range workflows {
 		totalSteps += len(wf.Steps)
@@ -117,37 +115,36 @@ func printAuditReport(
 	fmt.Fprintf(w, "  Tools:     %d\n\n", len(resolved))
 
 	// Drift section.
-	fmt.Fprintf(w, "  Dependency Integrity\n")
-	fmt.Fprintf(w, "  --------------------\n")
+	fmt.Fprintf(w, "  %s\n", bold("Dependency Integrity"))
 	if len(driftResults) == 0 {
-		fmt.Fprintf(w, "  No drift detected.\n\n")
+		printSuccess(w, "No drift detected.")
 	} else {
 		for _, d := range driftResults {
-			fmt.Fprintf(w, "  CRITICAL: %s\n", d.Reference)
-			fmt.Fprintf(w, "    Locked: %s\n", d.LockedHash)
-			fmt.Fprintf(w, "    Live:   %s\n\n", d.LiveHash)
+			printFailure(w, "CRITICAL: %s", d.Reference)
+			fmt.Fprintf(w, "      Locked: %s\n", dim(d.LockedHash))
+			fmt.Fprintf(w, "      Live:   %s\n", dim(d.LiveHash))
 		}
 	}
+	fmt.Fprintln(w)
 
 	// Secret exposure section.
-	fmt.Fprintf(w, "  Secret Exposure\n")
-	fmt.Fprintf(w, "  ---------------\n")
+	fmt.Fprintf(w, "  %s\n", bold("Secret Exposure"))
 	if len(scopeResults) == 0 {
-		fmt.Fprintf(w, "  No secret violations found.\n\n")
+		printSuccess(w, "No secret violations found.")
 	} else {
 		for _, sr := range scopeResults {
-			fmt.Fprintf(w, "  Step %q: %d violation(s)\n", sr.StepName, len(sr.Violations))
+			printFailure(w, "Step %q: %d violation(s)", sr.StepName, len(sr.Violations))
 			for _, v := range sr.Violations {
-				fmt.Fprintf(w, "    %s — %s (%s)\n", v.Secret, v.Reason, v.Tool)
+				fmt.Fprintf(w, "      %s — %s %s\n", bold(v.Secret), v.Reason, dim("("+v.Tool+")"))
 			}
-			fmt.Fprintln(w)
 		}
 	}
+	fmt.Fprintln(w)
 
 	issues := len(driftResults) + len(scopeResults)
 	if issues == 0 {
-		fmt.Fprintf(w, "  Result: PASS\n\n")
+		fmt.Fprintf(w, "  Result: %s\n\n", green(bold("PASS")))
 	} else {
-		fmt.Fprintf(w, "  Result: FAIL (%d issue(s))\n\n", issues)
+		fmt.Fprintf(w, "  Result: %s (%d issue(s))\n\n", red(bold("FAIL")), issues)
 	}
 }
