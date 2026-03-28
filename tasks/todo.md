@@ -43,24 +43,24 @@
 - [x] Compare live digests against locked digests
 - [x] Report drift with severity levels
 - [x] Exit code: 0 = clean, 1 = drift detected
-- [ ] Integration test: detect simulated tag hijack
+- [x] Integration test: detect simulated tag hijack (3 drift tests: clean, single, multi)
 - [x] Smoke test: `scg check` on clean state returns 0
 
 ## Phase 1d: Working `scg scope` (Week 2)
 
-- [ ] Scan current environment for secret-like variables
-- [ ] Populate Secret nodes in graph from env scan
-- [ ] Query graph for forbidden patterns
-- [ ] Report violations (blocked secrets)
+- [x] Scan current environment for secret-like variables
+- [x] Populate Secret nodes in graph from env scan
+- [x] Query graph for forbidden patterns via Cypher
+- [x] Report violations (blocked secrets)
 - [ ] Integration test: detect PYPI_TOKEN in trivy-scan step
 
 ## Phase 1e: Polish (Week 2)
 
-- [ ] `scg update` implementation
-- [ ] `scg audit` implementation (init + scope combined)
+- [x] `scg update` implementation (re-init with overwrite)
+- [x] `scg audit` implementation (drift + scope combined report)
+- [x] Add --json flag for machine-readable output (init, check, scope, audit)
 - [ ] Error messages: clear, actionable, no stack traces
 - [ ] Output formatting: colored terminal output
-- [ ] Add --json flag for machine-readable output
 - [ ] Add --strict flag for fail-closed mode
 - [ ] Unit tests for all packages (80% coverage gate)
 - [ ] Race detector clean (`make test-race`)

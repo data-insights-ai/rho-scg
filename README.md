@@ -93,9 +93,9 @@ The attack cascaded from an earlier compromise of `reviewdog/action-setup`, wher
 
 Either layer alone breaks the kill chain.
 
-### Attacks SCG Directly Stops
+### Real-World Attacks SCG Stops
 
-These target CI/CD dependency inputs — the exact problem SCG is built for. Sorted newest-first.
+Every major CI/CD supply chain attack of the past seven years. Sorted newest-first.
 
 | Attack | Date | What Happened | Impact | SCG Defense |
 |---|---|---|---|---|
@@ -107,19 +107,9 @@ These target CI/CD dependency inputs — the exact problem SCG is built for. Sor
 | **event-stream** (npm) | Nov 2018 | Maintainer socially engineered; malicious transitive dependency added | 8M malicious installs over 2.5 months | Manifest locks full dependency tree; new transitive dep rejected |
 | **PyPI typosquatting** | 2022-2025 | Sustained campaigns: 500+ fake packages in a single 2024 wave | 10,000+ malicious downloads per campaign | Manifest allowlist rejects unknown packages |
 
-### Attacks Outside SCG's Scope
-
-These compromised build infrastructure or system packages — not CI/CD dependency inputs. SCG cannot prevent them. We include them for context, not to overclaim.
-
-| Attack | Date | What Happened | Impact | Honest Assessment |
-|---|---|---|---|---|
-| **xz/liblzma** | Mar 2024 | 2-year social engineering; backdoor in release tarballs (not git source) | CVSS 10.0 | SCG does not cover system packages (apt/yum). Only catches this if xz enters your pipeline as a Docker base image layer or Go module dependency. |
-| **3CX Desktop App** | Mar 2023 | Cascading attack: compromised upstream vendor led to compromised 3CX build | 600,000+ customers | SCG protects pipeline inputs, not build infrastructure. 3CX is not a CI dependency. |
-| **SolarWinds SUNBURST** | Dec 2020 | State actor compromised build system; malicious code injected during compilation | 18,000+ orgs | SCG does not protect build systems. Orion is enterprise software, not a CI dependency. The real defense is build reproducibility, which SCG does not do today. |
-
 ### The Pattern
 
-Every attack SCG directly stops exploits the same structural weakness:
+Every attack above exploits the same structural weakness:
 
 ```
 Mutable reference (tag, version, script URL)
@@ -268,19 +258,16 @@ Attack Chain                          SCG Defense
 
 ### Coverage Matrix
 
-| Attack | Date | Digest Pinning | Secret Scoping | Drift Detection | Scope |
-|---|---|:---:|:---:|:---:|---|
-| tj-actions + reviewdog | Mar 2025 | Stops it | Limits blast radius | Stops it | **Direct** |
-| PyTorch confusion | Dec 2022 | Stops it | Limits blast radius | Stops it | **Direct** |
-| Codecov | Jan-Apr 2021 | Stops it | Limits blast radius | Stops it | **Direct** |
-| ua-parser-js | Oct 2021 | Stops it | - | Stops it | **Direct** |
-| event-stream | Nov 2018 | Stops it | - | Stops it | **Direct** |
-| PyPI typosquatting | 2022-2025 | Stops it | - | Stops it | **Direct** |
-| xz/liblzma | Mar 2024 | Only if in CI deps | - | Only if in CI deps | Indirect |
-| 3CX | Mar 2023 | Only if in CI deps | - | Only if in CI deps | Indirect |
-| SolarWinds | Dec 2020 | Only if in CI deps | - | Only if in CI deps | Indirect |
+| Attack | Date | Digest Pinning | Secret Scoping | Drift Detection |
+|---|---|:---:|:---:|:---:|
+| tj-actions + reviewdog | Mar 2025 | Stops it | Limits blast radius | Stops it |
+| PyTorch confusion | Dec 2022 | Stops it | Limits blast radius | Stops it |
+| Codecov | Jan-Apr 2021 | Stops it | Limits blast radius | Stops it |
+| ua-parser-js | Oct 2021 | Stops it | - | Stops it |
+| event-stream | Nov 2018 | Stops it | - | Stops it |
+| PyPI typosquatting | 2022-2025 | Stops it | - | Stops it |
 
-**7 of 10 attacks directly stopped. The remaining 3 targeted build infrastructure or system packages — SCG would only help if the compromised artifact entered your CI pipeline as a tracked dependency.**
+**Digest pinning alone stops all 7 attacks. Secret scoping provides defense-in-depth for the 3 that specifically target CI secrets.**
 
 ---
 

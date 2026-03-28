@@ -73,76 +73,119 @@ func runInit(ctx context.Context, logger *slog.Logger, args []string) error {
 	fs := flag.NewFlagSet("init", flag.ExitOnError)
 	workflowDir := fs.String("workflows", ".github/workflows", "workflow directory to scan")
 	lockfile := fs.String("lockfile", "scg.lock", "output lockfile path")
+	jsonOut := fs.Bool("json", false, "output results as JSON")
 	fs.Parse(args)
 
 	ghToken := os.Getenv("GITHUB_TOKEN")
 	res := resolver.NewGitHubResolver(ghToken)
 
-	return doInit(ctx, logger, *workflowDir, *lockfile, res)
+	err := doInit(ctx, logger, *workflowDir, *lockfile, res)
+	if *jsonOut {
+		result := &JSONResult{Command: "init", Status: "ok", ExitCode: 0}
+		if err != nil {
+			result.Status = "error"
+			result.ExitCode = 1
+			result.Error = err.Error()
+		}
+		writeJSON(result)
+		if err != nil {
+			os.Exit(1)
+		}
+		return nil
+	}
+	return err
 }
 
 func runCheck(ctx context.Context, logger *slog.Logger, args []string) error {
 	fs := flag.NewFlagSet("check", flag.ExitOnError)
 	lockfile := fs.String("lockfile", "scg.lock", "lockfile path")
+	jsonOut := fs.Bool("json", false, "output results as JSON")
 	fs.Parse(args)
 
 	ghToken := os.Getenv("GITHUB_TOKEN")
 
-	return doCheck(ctx, logger, *lockfile, ghToken)
+	err := doCheck(ctx, logger, *lockfile, ghToken)
+	if *jsonOut {
+		result := &JSONResult{Command: "check", Status: "ok", ExitCode: 0}
+		if err != nil {
+			result.Status = "drift_detected"
+			result.ExitCode = 1
+			result.Error = err.Error()
+		}
+		writeJSON(result)
+		if err != nil {
+			os.Exit(1)
+		}
+		return nil
+	}
+	return err
 }
 
 func runUpdate(ctx context.Context, logger *slog.Logger, args []string) error {
 	fs := flag.NewFlagSet("update", flag.ExitOnError)
+	workflowDir := fs.String("workflows", ".github/workflows", "workflow directory to scan")
 	lockfile := fs.String("lockfile", "scg.lock", "lockfile path")
 	fs.Parse(args)
 
-	logger.Info("updating lockfile", "path", *lockfile)
-
-	// TODO: implement
-	// 1. Read existing lockfile
-	// 2. Re-resolve all dependencies
-	// 3. Update graph with new resolutions (close old RESOLVES_TO, create new)
-	// 4. Regenerate and sign lockfile
-
-	fmt.Println("scg update: not yet implemented")
-	return nil
+	return doUpdate(ctx, logger, *workflowDir, *lockfile)
 }
 
 func runScope(ctx context.Context, logger *slog.Logger, args []string) error {
 	fs := flag.NewFlagSet("scope", flag.ExitOnError)
 	stepName := fs.String("step", "", "step name to scope (required)")
+	workflowDir := fs.String("workflows", ".github/workflows", "workflow directory to scan")
+	jsonOut := fs.Bool("json", false, "output results as JSON")
 	fs.Parse(args)
 
 	if *stepName == "" {
 		return fmt.Errorf("--step is required")
 	}
 
-	logger.Info("scoping step", "step", *stepName)
+	ghToken := os.Getenv("GITHUB_TOKEN")
+	res := resolver.NewGitHubResolver(ghToken)
 
-	// TODO: implement
-	// 1. Create graph and bootstrap DSM profiles
-	// 2. Scan current environment for secrets
-	// 3. Query graph for forbidden patterns for this step's tool
-	// 4. Report violations and optionally sanitize environment
-
-	fmt.Println("scg scope: not yet implemented")
-	return nil
+	err := doScope(ctx, logger, *workflowDir, *stepName, res)
+	if *jsonOut {
+		result := &JSONResult{Command: "scope", Status: "ok", ExitCode: 0}
+		if err != nil {
+			result.Status = "violations_found"
+			result.ExitCode = 1
+			result.Error = err.Error()
+		}
+		writeJSON(result)
+		if err != nil {
+			os.Exit(1)
+		}
+		return nil
+	}
+	return err
 }
 
 func runAudit(ctx context.Context, logger *slog.Logger, args []string) error {
 	fs := flag.NewFlagSet("audit", flag.ExitOnError)
 	workflowDir := fs.String("workflows", ".github/workflows", "workflow directory to scan")
+	lockfile := fs.String("lockfile", "scg.lock", "lockfile path")
+	jsonOut := fs.Bool("json", false, "output results as JSON")
 	fs.Parse(args)
 
-	logger.Info("auditing", "dir", *workflowDir)
+	ghToken := os.Getenv("GITHUB_TOKEN")
+	res := resolver.NewGitHubResolver(ghToken)
 
-	// TODO: implement
-	// 1. Run init (scan + resolve)
-	// 2. Run scope for each step
-	// 3. Compile full report: drift + secret exposure
-
-	fmt.Println("scg audit: not yet implemented")
-	return nil
+	err := doAudit(ctx, logger, *workflowDir, *lockfile, res)
+	if *jsonOut {
+		result := &JSONResult{Command: "audit", Status: "ok", ExitCode: 0}
+		if err != nil {
+			result.Status = "issues_found"
+			result.ExitCode = 1
+			result.Error = err.Error()
+		}
+		writeJSON(result)
+		if err != nil {
+			os.Exit(1)
+		}
+		return nil
+	}
+	return err
 }
 
 func printUsage() {
@@ -159,18 +202,21 @@ Commands:
   audit     Full security report across all steps
   version   Print version information
 
+Flags (all commands):
+  --json              Output results as JSON (machine-readable)
+  --workflows DIR     Workflow directory (default: .github/workflows)
+  --lockfile PATH     Lockfile path (default: scg.lock)
+
 Environment:
   GITHUB_TOKEN       GitHub API token (for resolving action references)
   SCG_API_KEY        SCG Platform API key (enables pre-computed hashes and profiles)
-  SCG_LOCKFILE       Lockfile path (default: scg.lock)
-  SCG_WORKFLOW_DIR   Workflow directory (default: .github/workflows)
-  SCG_LOG_LEVEL      Log level: debug, info, warn, error (default: info)
 
 Examples:
-  scg init                        # scan and lock all dependencies
-  scg check                       # verify nothing has drifted (CI pre-step)
-  scg scope --step trivy-scan     # sanitize secrets for a step
-  scg audit                       # full security report
+  scg init                          # scan and lock all dependencies
+  scg check                         # verify nothing has drifted (CI pre-step)
+  scg check --json                  # machine-readable drift check
+  scg scope --step trivy-scan       # audit secrets for a step
+  scg audit                         # full security report
 
 Learn more: https://github.com/bds421/supply-chain-guardian
 `)

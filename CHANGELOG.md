@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.5] - 2026-03-28
+
+### Added
+- `scg scope` working end-to-end: parse workflow, bootstrap DSM, scan environment,
+  populate graph with secret nodes, query for forbidden pattern violations
+- `scg update` working: re-resolves all dependencies and rewrites lockfile
+- `scg audit` working: combines drift detection + secret exposure analysis in one report
+- `--json` flag on init, check, scope, audit for machine-readable output
+- 3 drift simulation tests: clean check, single-tool tamper, multi-tool tamper
+
+### Changed
+- README: removed out-of-scope attacks (xz, 3CX, SolarWinds) — focus on what SCG does
+- Coverage matrix cleaned up: 7 direct attacks, no indirect entries
+
 ## [0.1.4] - 2026-03-28
 
 ### Added
