@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.8] - 2026-03-28
+
+### Added
+- 46 production-grade tests (101 total, up from 55):
+  - **Network failure tests**: resolver timeout, 404, 500, rate limit, malformed JSON, empty response, context cancellation
+  - **Parser adversarial tests**: empty files, null bytes, binary content, deeply nested YAML, malformed YAML, long image refs, control chars, build arg skip
+  - **Graph correctness tests**: node creation verification, Cypher query results, secret violation detection, dedup behavior, parameter injection defense, query parsing
+  - **Manifest security tests**: empty JSON, invalid JSON, truncated, binary content, wrong key, algorithm confusion, malformed base64, short keys, deterministic signing, empty lockfile, empty hash drift
+
+### Fixed
+- **Security bug found by tests**: GitHub resolver accepted empty SHA hashes without error. Now validates SHA is non-empty before returning.
+
 ## [0.1.7] - 2026-03-28
 
 ### Added

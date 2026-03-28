@@ -91,12 +91,21 @@ func (r *GitHubResolver) resolveRef(ctx context.Context, owner, repo, ref string
 			return "", fmt.Errorf("decode response: %w", err)
 		}
 
+		sha := result.Object.SHA
+
 		// If it's an annotated tag, we need to dereference to get the commit.
 		if result.Object.Type == "tag" {
-			return r.dereferenceTag(ctx, owner, repo, result.Object.SHA)
+			sha, err = r.dereferenceTag(ctx, owner, repo, sha)
+			if err != nil {
+				return "", err
+			}
 		}
 
-		return result.Object.SHA, nil
+		if sha == "" {
+			return "", fmt.Errorf("GitHub API returned empty SHA for %s/%s ref %s/%s", owner, repo, refType, ref)
+		}
+
+		return sha, nil
 	}
 
 	// If it looks like a SHA already, verify it exists.
