@@ -21,29 +21,30 @@
 - [x] Config model (internal/config/)
 - [x] Test helpers (internal/testutil/)
 - [x] CLI skeleton (cmd/scg/main.go)
-- [ ] Verify build compiles
+- [x] Verify build compiles
 
 ## Phase 1b: Working `scg init` (Week 1-2)
 
-- [ ] Wire parser: discover + parse workflow files
-- [ ] Wire resolver: resolve each tool reference via GitHub API
-- [ ] Wire graph: populate Tool, Digest, Step, Secret, Pipeline nodes
-- [ ] Wire graph: create RESOLVES_TO (temporal), USES, HAS_ACCESS relationships
-- [ ] Bootstrap DSM profiles into graph before scan
-- [ ] Generate lockfile from graph state
-- [ ] Sign lockfile with ed25519
-- [ ] Integration test: `scg init` on a sample workflow
-- [ ] Verify `scg init` produces correct scg.lock
+- [x] Wire parser: discover + parse workflow files
+- [x] Wire resolver: resolve each tool reference via GitHub API
+- [x] Wire graph: populate Tool, Digest, Step, Secret, Pipeline nodes
+- [x] Wire graph: create RESOLVES_TO (temporal), USES, HAS_ACCESS relationships
+- [x] Bootstrap DSM profiles into graph before scan
+- [x] Generate lockfile from parsed + resolved data
+- [x] Sign lockfile with ed25519 (ephemeral keypair)
+- [x] Integration test: `scg init` on a sample workflow (7 tests, mock resolver)
+- [x] Verify `scg init` produces correct scg.lock
+- [x] Smoke test: `scg init` with real GitHub API resolves actions/checkout@v4, actions/setup-go@v5
 
 ## Phase 1c: Working `scg check` (Week 2)
 
-- [ ] Read and verify lockfile signature
-- [ ] Re-resolve each tool reference
-- [ ] Compare live digests against locked digests
-- [ ] Report drift with severity levels
-- [ ] Exit code: 0 = clean, 1 = drift detected
+- [x] Read and verify lockfile signature
+- [x] Re-resolve each tool reference
+- [x] Compare live digests against locked digests
+- [x] Report drift with severity levels
+- [x] Exit code: 0 = clean, 1 = drift detected
 - [ ] Integration test: detect simulated tag hijack
-- [ ] Test: `scg check` on clean state returns 0
+- [x] Smoke test: `scg check` on clean state returns 0
 
 ## Phase 1d: Working `scg scope` (Week 2)
 

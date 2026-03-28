@@ -136,10 +136,11 @@ SCG models dependencies as a temporal knowledge graph:
 - **Nodes:** Tool, Digest, Step, Secret, Pipeline, Profile, SecretPattern
 - **Key relationship:** `RESOLVES_TO` (Tool -> Digest) is temporal — carries ValidFrom/ValidTo timestamps enabling drift detection over time
 
-## Limitations (current)
+## Limitations (current, v0.1.4)
 
-- CLI commands are scaffolded but not yet wired end-to-end (v0.1.x)
-- Only GitHub Actions ecosystem is implemented
+- `scg init` and `scg check` are working end-to-end
+- `scg update`, `scg scope`, `scg audit` are stubs (not yet wired)
+- Only GitHub Actions ecosystem is implemented (Docker, PyPI, npm planned)
 - `--json` output flag is planned but not yet available
-- OIDC keyless signing is designed but not yet implemented
+- OIDC keyless signing is designed but not yet implemented (ed25519 works)
 - Platform API integration is stubbed

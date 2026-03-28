@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.4] - 2026-03-28
+
+### Added
+- `scg init` working end-to-end: discover workflows, parse GitHub Actions YAML,
+  resolve tool references via GitHub API, populate TKG temporal knowledge graph,
+  sign with ed25519, write `scg.lock`
+- `scg check` working end-to-end: read lockfile, verify signature, re-resolve
+  dependencies, detect drift, exit 0 (clean) or 1 (drift detected)
+- Graph population with deduplication: same tool in multiple steps creates one
+  Tool node, one Digest node, with correct USES/RESOLVES_TO/HAS_ACCESS relationships
+- DSM profile linking: versioned tools (e.g., `trivy-action@v1`) linked to
+  bootstrap security profiles via base reference matching
+- 7 integration tests with mock resolver (no network calls)
+- Sample workflow fixture (`internal/testutil/testdata/ci.yml`)
+- Smoke-tested with real GitHub API (actions/checkout@v4, actions/setup-go@v5)
+
 ## [0.1.3] - 2026-03-28
 
 ### Changed

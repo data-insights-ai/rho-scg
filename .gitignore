@@ -1,6 +1,6 @@
 # Binary
-scg
-scg-*
+/scg
+/scg-*
 
 # Go
 coverage.out

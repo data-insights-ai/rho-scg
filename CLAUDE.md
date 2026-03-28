@@ -124,11 +124,16 @@ internal/testutil  TestGraph(t) helper
 - Every public function gets a direct test
 - Coverage gate: 80% per package
 
-## Current State (v0.1.x)
+## Current State (v0.1.4)
 
-- Scaffold complete: all packages, interfaces, types, CLI skeleton
-- Commands print "not yet implemented" — stubs only
-- Next: wire `scg init` end-to-end (parse → resolve → graph → lockfile)
+- `scg init` — working end-to-end: discover workflows → parse → resolve via GitHub API → populate TKG graph → sign → write scg.lock
+- `scg check` — working end-to-end: read lockfile → verify signature → re-resolve → detect drift → exit 0|1
+- `scg update` — stub
+- `scg scope` — stub (scoper engine implemented, not wired to CLI)
+- `scg audit` — stub
+- 7 integration tests passing (mock resolver, no network)
+- Smoke tested with real GitHub API (actions/checkout@v4, actions/setup-go@v5)
+- Next: wire `scg scope`, add drift simulation test, `--json` output flag
 - See `tasks/todo.md` for Phase 1 checklist
 - See `tasks/todo.platform` for Platform roadmap
 
