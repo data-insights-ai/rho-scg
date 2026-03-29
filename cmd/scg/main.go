@@ -2,15 +2,6 @@
 //
 // SCG prevents supply chain attacks by enforcing dependency integrity
 // and secret least-privilege across CI/CD pipelines.
-//
-// Usage:
-//
-//	scg init      Scan workflows, resolve dependencies, write scg.lock
-//	scg check     Validate scg.lock against live state (exit 0=clean, 1=drift)
-//	scg update    Re-resolve all dependencies, update scg.lock
-//	scg scope     Audit and sanitize secrets for a specific step
-//	scg audit     Full security report across all steps
-//	scg version   Print version information
 package main
 
 import (
@@ -27,26 +18,6 @@ import (
 var version = "dev"
 
 func main() {
-	// Check for --verbose anywhere in args (before subcommand parsing).
-	verbose := false
-	var filteredArgs []string
-	for _, arg := range os.Args[1:] {
-		if arg == "--verbose" || arg == "-v" {
-			verbose = true
-		} else {
-			filteredArgs = append(filteredArgs, arg)
-		}
-	}
-	os.Args = append(os.Args[:1], filteredArgs...)
-
-	logLevel := slog.LevelError
-	if verbose {
-		logLevel = slog.LevelInfo
-	}
-	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
-		Level: logLevel,
-	}))
-
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
 
@@ -58,15 +29,15 @@ func main() {
 	var err error
 	switch os.Args[1] {
 	case "init":
-		err = runInit(ctx, logger, os.Args[2:])
+		err = runInit(ctx, os.Args[2:])
 	case "check":
-		err = runCheck(ctx, logger, os.Args[2:])
+		err = runCheck(ctx, os.Args[2:])
 	case "update":
-		err = runUpdate(ctx, logger, os.Args[2:])
+		err = runUpdate(ctx, os.Args[2:])
 	case "scope":
-		err = runScope(ctx, logger, os.Args[2:])
+		err = runScope(ctx, os.Args[2:])
 	case "audit":
-		err = runAudit(ctx, logger, os.Args[2:])
+		err = runAudit(ctx, os.Args[2:])
 	case "version":
 		fmt.Printf("scg %s\n", version)
 		return
@@ -80,20 +51,28 @@ func main() {
 	}
 
 	if err != nil {
-		if verbose {
-			logger.Error(err.Error())
-		}
 		os.Exit(1)
 	}
 }
 
-func runInit(ctx context.Context, logger *slog.Logger, args []string) error {
+// makeLogger creates a logger based on the verbose flag.
+func makeLogger(verbose bool) *slog.Logger {
+	level := slog.LevelError
+	if verbose {
+		level = slog.LevelInfo
+	}
+	return slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: level}))
+}
+
+func runInit(ctx context.Context, args []string) error {
 	fs := flag.NewFlagSet("init", flag.ExitOnError)
 	workflowDir := fs.String("workflows", ".github/workflows", "workflow directory to scan")
 	lockfile := fs.String("lockfile", "scg.lock", "output lockfile path")
 	jsonOut := fs.Bool("json", false, "output results as JSON")
+	verbose := fs.Bool("verbose", false, "show detailed resolution progress")
 	fs.Parse(args)
 
+	logger := makeLogger(*verbose)
 	ghToken := os.Getenv("GITHUB_TOKEN")
 	res := resolver.NewGitHubResolver(ghToken)
 
@@ -114,13 +93,15 @@ func runInit(ctx context.Context, logger *slog.Logger, args []string) error {
 	return err
 }
 
-func runCheck(ctx context.Context, logger *slog.Logger, args []string) error {
+func runCheck(ctx context.Context, args []string) error {
 	fs := flag.NewFlagSet("check", flag.ExitOnError)
 	lockfile := fs.String("lockfile", "scg.lock", "lockfile path")
 	jsonOut := fs.Bool("json", false, "output results as JSON")
 	noVerify := fs.Bool("no-verify", false, "skip signature verification (not recommended)")
+	verbose := fs.Bool("verbose", false, "show detailed resolution progress")
 	fs.Parse(args)
 
+	logger := makeLogger(*verbose)
 	ghToken := os.Getenv("GITHUB_TOKEN")
 
 	err := doCheck(ctx, logger, *lockfile, ghToken, *noVerify)
@@ -140,27 +121,31 @@ func runCheck(ctx context.Context, logger *slog.Logger, args []string) error {
 	return err
 }
 
-func runUpdate(ctx context.Context, logger *slog.Logger, args []string) error {
+func runUpdate(ctx context.Context, args []string) error {
 	fs := flag.NewFlagSet("update", flag.ExitOnError)
 	workflowDir := fs.String("workflows", ".github/workflows", "workflow directory to scan")
 	lockfile := fs.String("lockfile", "scg.lock", "lockfile path")
+	verbose := fs.Bool("verbose", false, "show detailed resolution progress")
 	fs.Parse(args)
 
+	logger := makeLogger(*verbose)
 	return doUpdate(ctx, logger, *workflowDir, *lockfile)
 }
 
-func runScope(ctx context.Context, logger *slog.Logger, args []string) error {
+func runScope(ctx context.Context, args []string) error {
 	fs := flag.NewFlagSet("scope", flag.ExitOnError)
 	stepName := fs.String("step", "", "step name to scope (required)")
 	workflowDir := fs.String("workflows", ".github/workflows", "workflow directory to scan")
 	jsonOut := fs.Bool("json", false, "output results as JSON")
-	sanitize := fs.Bool("sanitize", false, "actually remove forbidden secrets from the environment (not just report)")
+	sanitize := fs.Bool("sanitize", false, "remove forbidden secrets from environment (not just report)")
+	verbose := fs.Bool("verbose", false, "show detailed progress")
 	fs.Parse(args)
 
 	if *stepName == "" {
 		return fmt.Errorf("--step is required")
 	}
 
+	logger := makeLogger(*verbose)
 	ghToken := os.Getenv("GITHUB_TOKEN")
 	res := resolver.NewGitHubResolver(ghToken)
 
@@ -181,13 +166,15 @@ func runScope(ctx context.Context, logger *slog.Logger, args []string) error {
 	return err
 }
 
-func runAudit(ctx context.Context, logger *slog.Logger, args []string) error {
+func runAudit(ctx context.Context, args []string) error {
 	fs := flag.NewFlagSet("audit", flag.ExitOnError)
 	workflowDir := fs.String("workflows", ".github/workflows", "workflow directory to scan")
 	lockfile := fs.String("lockfile", "scg.lock", "lockfile path")
 	jsonOut := fs.Bool("json", false, "output results as JSON")
+	verbose := fs.Bool("verbose", false, "show detailed progress")
 	fs.Parse(args)
 
+	logger := makeLogger(*verbose)
 	ghToken := os.Getenv("GITHUB_TOKEN")
 	res := resolver.NewGitHubResolver(ghToken)
 
@@ -223,21 +210,22 @@ Commands:
   version   Print version information
 
 Flags (all commands):
-  --json              Output results as JSON (machine-readable)
-  --workflows DIR     Workflow directory (default: .github/workflows)
-  --lockfile PATH     Lockfile path (default: scg.lock)
+  --verbose             Show detailed resolution progress
+  --json                Output results as JSON (machine-readable)
+  --lockfile PATH       Lockfile path (default: scg.lock)
+  --workflows DIR       Workflow directory (default: .github/workflows)
 
 Environment:
-  GITHUB_TOKEN       GitHub API token (for resolving action references)
-  SCG_API_KEY        SCG Platform API key (enables pre-computed hashes and profiles)
+  GITHUB_TOKEN       GitHub API token (avoids rate limits)
+  SCG_API_KEY        SCG Platform API key (pre-computed hashes, no rate limits)
 
 Examples:
   scg init                          # scan and lock all dependencies
-  scg check                         # verify nothing has drifted (CI pre-step)
-  scg check --json                  # machine-readable drift check
+  scg check                         # verify nothing has drifted
+  scg check --verbose               # show resolution details
   scg scope --step trivy-scan       # audit secrets for a step
   scg audit                         # full security report
 
-Learn more: https://github.com/bds421/supply-chain-guardian
+Learn more: https://scg.bds421.com
 `)
 }

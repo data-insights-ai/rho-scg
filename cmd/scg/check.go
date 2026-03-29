@@ -38,7 +38,7 @@ func doCheck(ctx context.Context, logger *slog.Logger, lockfilePath, ghToken str
 	resolvers := buildResolvers(ghToken)
 
 	// 4. Detect drift (continues on per-tool errors).
-	results, warnings, err := detectDriftWithPartialFailure(ctx, lf, resolvers)
+	results, warnings, err := detectDriftWithPartialFailure(ctx, lf, resolvers, logger)
 	if err != nil {
 		return fmt.Errorf("drift detection: %w", err)
 	}
@@ -117,7 +117,11 @@ func buildResolvers(ghToken string) map[resolver.Ecosystem]resolver.Resolver {
 // detectDriftWithPartialFailure runs drift detection but continues
 // on per-tool resolution errors instead of failing the entire check.
 // Returns drift results + warnings for tools that couldn't be resolved.
-func detectDriftWithPartialFailure(ctx context.Context, lf *manifest.Lockfile, resolvers map[resolver.Ecosystem]resolver.Resolver) ([]manifest.DriftResult, []string, error) {
+func detectDriftWithPartialFailure(ctx context.Context, lf *manifest.Lockfile, resolvers map[resolver.Ecosystem]resolver.Resolver, logger ...*slog.Logger) ([]manifest.DriftResult, []string, error) {
+	var log *slog.Logger
+	if len(logger) > 0 {
+		log = logger[0]
+	}
 	var results []manifest.DriftResult
 	var warnings []string
 
@@ -131,6 +135,9 @@ func detectDriftWithPartialFailure(ctx context.Context, lf *manifest.Lockfile, r
 					continue
 				}
 
+				if log != nil {
+					log.Info("resolving", "ref", tool.Reference)
+				}
 				live, err := res.Resolve(ctx, tool.Reference)
 				if err != nil {
 					// Extract the root cause — skip nested "resolve X:" wrapping.
