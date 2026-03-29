@@ -80,7 +80,9 @@ func main() {
 	}
 
 	if err != nil {
-		logger.Error(err.Error())
+		if verbose {
+			logger.Error(err.Error())
+		}
 		os.Exit(1)
 	}
 }
