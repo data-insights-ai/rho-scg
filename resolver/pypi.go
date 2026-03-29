@@ -2,7 +2,6 @@ package resolver
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -51,7 +50,7 @@ func (r *PyPIResolver) Resolve(ctx context.Context, reference string) (*Resoluti
 
 // resolveVersion fetches the SHA256 hash for a specific PyPI package version.
 func (r *PyPIResolver) resolveVersion(ctx context.Context, name, version string) (string, error) {
-	url := fmt.Sprintf("https://pypi.org/pypi/%s/%s/json", name, version)
+	url := fmt.Sprintf("https://pypi.org/pypi/%s/%s/json", escapePath(name), escapePath(version))
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
@@ -72,8 +71,8 @@ func (r *PyPIResolver) resolveVersion(ctx context.Context, name, version string)
 	}
 
 	var result pypiResponse
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return "", fmt.Errorf("decode PyPI response: %w", err)
+	if err := decodeJSON(resp, &result); err != nil {
+		return "", err
 	}
 
 	// Find the sdist or first wheel with a sha256 digest.

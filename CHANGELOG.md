@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.11] - 2026-03-29
+
+### Fixed (second security review)
+- **Canonical JSON signing**: Sign and verify now use shared `canonicalJSON()` — eliminates risk of serialization divergence between signing and verification paths
+- **HTTP response body size limits**: All resolver HTTP clients capped at 10MB via `io.LimitReader` — prevents OOM from malicious registries
+- **URL path encoding**: All resolver URLs use `url.PathEscape()` for package names, versions, owners — prevents path traversal injection
+- **Audit uses all resolvers**: `scg audit` now checks Docker, PyPI, npm drift (was only GitHub)
+- **Lockfile path validation**: `WriteLockfile` rejects paths containing `..` — prevents directory traversal via `--lockfile` flag
+- **Honest scoper documentation**: `ScanEnv()` docstring clarifies it only identifies secrets, does not sanitize (caller's responsibility)
+- **Docker ref parsing coupling documented**: Workflow parser's docker:// handling notes it must stay consistent with `resolver.parseDockerRef()`
+
 ## [0.1.10] - 2026-03-29
 
 ### Fixed (security review findings)

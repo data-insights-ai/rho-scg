@@ -2,7 +2,6 @@ package resolver
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -51,7 +50,7 @@ func (r *NPMResolver) Resolve(ctx context.Context, reference string) (*Resolutio
 
 // resolveVersion fetches the integrity hash for a specific npm package version.
 func (r *NPMResolver) resolveVersion(ctx context.Context, name, version string) (string, error) {
-	url := fmt.Sprintf("https://registry.npmjs.org/%s/%s", name, version)
+	url := fmt.Sprintf("https://registry.npmjs.org/%s/%s", escapePath(name), escapePath(version))
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
@@ -73,8 +72,8 @@ func (r *NPMResolver) resolveVersion(ctx context.Context, name, version string) 
 	}
 
 	var result npmVersionResponse
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return "", fmt.Errorf("decode npm response: %w", err)
+	if err := decodeJSON(resp, &result); err != nil {
+		return "", err
 	}
 
 	if result.Dist.Integrity != "" {

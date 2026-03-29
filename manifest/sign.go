@@ -70,13 +70,19 @@ func (v *Ed25519Verifier) Verify(data []byte, sig *Signature) error {
 	return nil
 }
 
-// SignLockfile signs a lockfile's content (excluding the signature field).
-func SignLockfile(lf *Lockfile, signer Signer) error {
-	// Sign the lockfile content without the signature field.
+// canonicalJSON produces deterministic JSON for signing/verification.
+// Uses json.Marshal which serializes struct fields in definition order.
+// This function is the ONLY place that produces bytes for signing —
+// both SignLockfile and VerifyLockfile must use the same path.
+func canonicalJSON(lf *Lockfile) ([]byte, error) {
 	stripped := *lf
 	stripped.Signature = nil
+	return json.Marshal(stripped)
+}
 
-	data, err := json.Marshal(stripped)
+// SignLockfile signs a lockfile's content (excluding the signature field).
+func SignLockfile(lf *Lockfile, signer Signer) error {
+	data, err := canonicalJSON(lf)
 	if err != nil {
 		return fmt.Errorf("marshal lockfile for signing: %w", err)
 	}
@@ -96,14 +102,10 @@ func VerifyLockfile(lf *Lockfile, verifier Verifier) error {
 		return fmt.Errorf("lockfile is not signed")
 	}
 
-	stripped := *lf
-	sig := stripped.Signature
-	stripped.Signature = nil
-
-	data, err := json.Marshal(stripped)
+	data, err := canonicalJSON(lf)
 	if err != nil {
 		return fmt.Errorf("marshal lockfile for verification: %w", err)
 	}
 
-	return verifier.Verify(data, sig)
+	return verifier.Verify(data, lf.Signature)
 }

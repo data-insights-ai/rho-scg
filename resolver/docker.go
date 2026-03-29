@@ -2,7 +2,6 @@ package resolver
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -129,8 +128,8 @@ func (r *DockerResolver) getToken(ctx context.Context, registry, repo string) (s
 	var result struct {
 		Token string `json:"token"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return "", fmt.Errorf("decode auth token: %w", err)
+	if err := decodeJSON(resp, &result); err != nil {
+		return "", err
 	}
 
 	return result.Token, nil

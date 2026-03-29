@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // DefaultLockfileName is the default lockfile name.
@@ -25,8 +26,21 @@ func ReadLockfile(path string) (*Lockfile, error) {
 	return &lf, nil
 }
 
+// ValidateLockfilePath checks the path doesn't contain directory traversal.
+func ValidateLockfilePath(path string) error {
+	cleaned := filepath.Clean(path)
+	if strings.Contains(cleaned, "..") {
+		return fmt.Errorf("lockfile path contains directory traversal: %s", path)
+	}
+	return nil
+}
+
 // WriteLockfile writes a lockfile to disk as formatted JSON.
 func WriteLockfile(path string, lf *Lockfile) error {
+	if err := ValidateLockfilePath(path); err != nil {
+		return err
+	}
+
 	data, err := json.MarshalIndent(lf, "", "  ")
 	if err != nil {
 		return fmt.Errorf("marshal lockfile: %w", err)

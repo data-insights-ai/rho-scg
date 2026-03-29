@@ -2,7 +2,6 @@ package resolver
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -57,7 +56,7 @@ func (r *GitHubResolver) Resolve(ctx context.Context, reference string) (*Resolu
 func (r *GitHubResolver) resolveRef(ctx context.Context, owner, repo, ref string) (string, error) {
 	// Try as a tag first, then as a branch.
 	for _, refType := range []string{"tags", "heads"} {
-		url := fmt.Sprintf("https://api.github.com/repos/%s/%s/git/ref/%s/%s", owner, repo, refType, ref)
+		url := fmt.Sprintf("https://api.github.com/repos/%s/%s/git/ref/%s/%s", escapePath(owner), escapePath(repo), refType, escapePath(ref))
 
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 		if err != nil {
@@ -87,8 +86,8 @@ func (r *GitHubResolver) resolveRef(ctx context.Context, owner, repo, ref string
 				Type string `json:"type"`
 			} `json:"object"`
 		}
-		if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-			return "", fmt.Errorf("decode response: %w", err)
+		if err := decodeJSON(resp, &result); err != nil {
+			return "", err
 		}
 
 		sha := result.Object.SHA
@@ -118,7 +117,7 @@ func (r *GitHubResolver) resolveRef(ctx context.Context, owner, repo, ref string
 
 // dereferenceTag resolves an annotated tag object to its target commit SHA.
 func (r *GitHubResolver) dereferenceTag(ctx context.Context, owner, repo, tagSHA string) (string, error) {
-	url := fmt.Sprintf("https://api.github.com/repos/%s/%s/git/tags/%s", owner, repo, tagSHA)
+	url := fmt.Sprintf("https://api.github.com/repos/%s/%s/git/tags/%s", escapePath(owner), escapePath(repo), escapePath(tagSHA))
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
@@ -144,8 +143,8 @@ func (r *GitHubResolver) dereferenceTag(ctx context.Context, owner, repo, tagSHA
 			SHA string `json:"sha"`
 		} `json:"object"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return "", fmt.Errorf("decode tag response: %w", err)
+	if err := decodeJSON(resp, &result); err != nil {
+		return "", err
 	}
 
 	return result.Object.SHA, nil

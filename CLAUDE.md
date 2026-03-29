@@ -124,7 +124,7 @@ internal/testutil  TestGraph(t) helper
 - Every public function gets a direct test
 - Coverage gate: 80% per package
 
-## Current State (v0.1.10)
+## Current State (v0.1.11)
 
 - All 5 commands working: `init`, `check`, `update`, `scope`, `audit`
 - 4 ecosystems: GitHub Actions, Docker, PyPI, npm (all checked in drift detection)

@@ -81,6 +81,8 @@ func parseToolRef(uses, stepName, jobName string) *ToolRef {
 	}
 
 	// Handle Docker image actions (e.g. docker://alpine:3.19).
+	// NOTE: This parsing must stay consistent with resolver.parseDockerRef()
+	// in resolver/docker.go. Both split on ":" for tag and "/" for registry.
 	if strings.HasPrefix(uses, "docker://") {
 		imageRef := uses[len("docker://"):]
 		if imageRef == "" {

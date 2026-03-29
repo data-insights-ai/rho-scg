@@ -28,6 +28,8 @@ func LooksLikeSecret(key string) bool {
 
 // ScanEnv scans the current process environment and returns the names
 // of all environment variables that look like secrets.
+// NOTE: This function only IDENTIFIES secrets — it does not remove them.
+// Actual environment sanitization (os.Unsetenv) is the caller's responsibility.
 func ScanEnv() []string {
 	var secrets []string
 	for _, e := range os.Environ() {
