@@ -124,18 +124,20 @@ internal/testutil  TestGraph(t) helper
 - Every public function gets a direct test
 - Coverage gate: 80% per package
 
-## Current State (v0.1.17)
+## Current State (v0.1.22)
 
 - All 5 commands working: `init`, `check`, `update`, `scope`, `audit`
 - 4 ecosystems: GitHub Actions, Docker, PyPI, npm
-- Platform integration: `SCG_API_KEY=xxx scg check` uses platform API (pre-computed hashes)
-- Graceful fallback: platform unavailable → local resolution
-- Response caching: 5 min TTL in-memory for platform responses
+- Platform integration: CLI queries api.scg.bds421.com by default
+  - SCG_API_KEY optional (higher rate limits)
+  - No GITHUB_TOKEN needed for normal use
+  - Graceful fallback: platform down → local resolution
+  - 5 min TTL cache for platform responses
+- Quiet by default, `--verbose` for detailed logs
 - Signatures mandatory, `--sanitize` for scope, `--json` output, colored terminal
 - 119 tests + 4 fuzz targets, race clean
-- Live: scg.bds421.com (CLI), api.scg.bds421.com (platform)
-- See `tasks/todo.md` for checklist
-- See `tasks/todo.platform` for Platform roadmap
+- Live: scg.bds421.com (CLI install), api.scg.bds421.com (platform API)
+- Next: complete platform-first resolver (Phase 3 in tasks/todo.md)
 
 ## Session Protocol
 

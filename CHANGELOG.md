@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.22] - 2026-03-29
+
+### Changed
+- **Quiet by default**: no slog output unless `--verbose` flag is set. Clean output for users.
+- **Proper `--verbose` flag**: registered in every subcommand's flagset, visible in `-h` help.
+- **Clean warning messages**: error chain unwrapped to show root cause only, not nested wrapping.
+- **Honest verification**: `scg check` fails (exit 1) when all tools are skipped (rate limited), instead of falsely reporting "all verified."
+- **Partial verification**: when some tools verify and some skip, reports "5 of 7 verified, 2 skipped."
+- **No duplicate error output**: slog ERROR line suppressed in non-verbose mode (commands print their own errors).
+
+### Added
+- Platform-first resolver architecture (Phase 3 in tasks/todo.md)
+- `platform/resolver.go`: FallbackResolver pattern (platform first, local fallback)
+- `platform/client.go`: works without API key (unauthenticated 10/hr tier)
+- Response caching: 5 min TTL for platform API responses
+
 ## [0.1.17] - 2026-03-29
 
 ### Added

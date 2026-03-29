@@ -136,13 +136,13 @@ SCG models dependencies as a temporal knowledge graph:
 - **Nodes:** Tool, Digest, Step, Secret, Pipeline, Profile, SecretPattern
 - **Key relationship:** `RESOLVES_TO` (Tool -> Digest) is temporal — carries ValidFrom/ValidTo timestamps enabling drift detection over time
 
-## Current Status (v0.1.17)
+## Current Status (v0.1.22)
 
 - All 5 commands working: `init`, `check`, `update`, `scope`, `audit`
 - 4 ecosystems: GitHub Actions, Docker, PyPI, npm
-- Platform integration: `SCG_API_KEY=xxx` uses pre-computed hashes from api.scg.bds421.com
+- Platform-first: queries api.scg.bds421.com by default (no token needed)
 - Graceful fallback: platform unavailable → local resolution
-- 5 min response cache for platform API calls
+- Quiet by default, `--verbose` for detailed logs
 - 119 tests + 4 fuzz targets, race clean
 
 ## Limitations

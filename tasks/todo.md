@@ -74,3 +74,20 @@
 - [x] Expand embedded profiles to top 30 (AWS, GCP, Azure, Docker, CodeQL, Codecov, SonarCloud, etc.)
 - [ ] IMDS blocker for cloud runners
 - [x] 55 tests total, race detector clean
+
+## Phase 3: Platform-First Architecture
+
+The CLI should ALWAYS query the platform (api.scg.bds421.com) first.
+Local resolution (GitHub/Docker/PyPI/npm APIs) is fallback only.
+No GITHUB_TOKEN needed for normal use.
+
+- [ ] Create `resolver/fallback.go` — try platform, fall back to local
+- [ ] Rewrite `buildResolvers()` in check.go — platform always first
+- [ ] Modify `platform/client.go` — work without API key (unauthenticated 10/hr)
+- [ ] Handle 429 rate limit → fall back to local with warning
+- [ ] Modify config — demote GITHUB_TOKEN to fallback-only
+- [ ] Update `cmd/scg/init.go` — use fallback resolver
+- [ ] Update CLI help: "GITHUB_TOKEN is for offline/fallback use only"
+- [ ] Update README: platform is the default, not an add-on
+- [ ] Tests for fallback behavior
+- [ ] Verify: `scg check` works with NO env vars set (uses platform)
