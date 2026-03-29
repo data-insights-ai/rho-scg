@@ -27,8 +27,24 @@ import (
 var version = "dev"
 
 func main() {
+	// Check for --verbose anywhere in args (before subcommand parsing).
+	verbose := false
+	var filteredArgs []string
+	for _, arg := range os.Args[1:] {
+		if arg == "--verbose" || arg == "-v" {
+			verbose = true
+		} else {
+			filteredArgs = append(filteredArgs, arg)
+		}
+	}
+	os.Args = append(os.Args[:1], filteredArgs...)
+
+	logLevel := slog.LevelError
+	if verbose {
+		logLevel = slog.LevelInfo
+	}
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
-		Level: slog.LevelInfo,
+		Level: logLevel,
 	}))
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
