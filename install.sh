@@ -129,20 +129,19 @@ main() {
     # Make executable
     chmod +x "${TMP_DIR}/${BINARY_NAME}"
 
-    # Install
+    # Install — try in order: writable /usr/local/bin, user-local, then sudo
     if [ -w "$INSTALL_DIR" ]; then
         mv "${TMP_DIR}/${BINARY_NAME}" "${INSTALL_DIR}/${BINARY_NAME}"
         info "Installed to ${INSTALL_DIR}/${BINARY_NAME}"
-    elif command -v sudo >/dev/null 2>&1; then
-        sudo mv "${TMP_DIR}/${BINARY_NAME}" "${INSTALL_DIR}/${BINARY_NAME}"
-        info "Installed to ${INSTALL_DIR}/${BINARY_NAME} (via sudo)"
     else
-        # Fallback: install to user directory
         USER_BIN="${HOME}/.local/bin"
         mkdir -p "$USER_BIN"
         mv "${TMP_DIR}/${BINARY_NAME}" "${USER_BIN}/${BINARY_NAME}"
+        INSTALL_DIR="$USER_BIN"
         info "Installed to ${USER_BIN}/${BINARY_NAME}"
-        warn "Add ${USER_BIN} to your PATH if not already present"
+        if ! echo "$PATH" | tr ':' '\n' | grep -qx "$USER_BIN"; then
+            warn "Add ${USER_BIN} to your PATH: export PATH=\"${USER_BIN}:\$PATH\""
+        fi
     fi
 
     # Verify
