@@ -1,0 +1,33 @@
+# SCG CLI — Distribution Task List
+
+## GitHub Action Wrapper
+
+- [ ] Create separate `bds421/scg-action` repository
+- [ ] `action.yml` — composite action with check + scope modes
+- [ ] Pre-built binary download in action (curl from release)
+- [ ] Input parameters: mode, step-name, lockfile, sanitize, no-verify, json
+- [ ] Outputs: status, drift-count, violation-count
+- [ ] GitHub Marketplace listing
+- [ ] Example workflows in README
+- [ ] Version tagging (v1, v1.0.0 pattern matching GitHub convention)
+
+## Release Binaries (Goreleaser)
+
+- [ ] `.goreleaser.yml` configuration
+- [ ] Cross-compile targets: linux-amd64, linux-arm64, darwin-amd64, darwin-arm64
+- [ ] Checksums file (SHA256)
+- [ ] Binary signing (cosign or GPG)
+- [ ] GitLab CI release pipeline (tag → build → upload)
+- [ ] GitHub mirror release (if open-sourcing)
+- [ ] Docker image: `ghcr.io/bds421/scg:latest`
+- [ ] Homebrew tap formula
+
+## Install Script (scg.bds421.com/install.sh)
+
+- [ ] Detect OS (linux/darwin) and architecture (amd64/arm64)
+- [ ] Download correct binary from release
+- [ ] Verify checksum
+- [ ] Install to /usr/local/bin (or $HOME/.local/bin if no root)
+- [ ] Print version after install
+- [ ] Host at scg.bds421.com via nginx/CDN
+- [ ] HTTPS required (reject HTTP)

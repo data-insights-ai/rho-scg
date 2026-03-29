@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.14] - 2026-03-29
+
+### Added
+- `install.sh` — cross-platform install script (detects OS/arch, downloads binary, verifies checksum)
+- `action.yml` — GitHub Action wrapper (check, scope, init, audit modes with all flags)
+- `.goreleaser.yml` — cross-compile config for linux/darwin amd64/arm64 with checksums
+- `tasks/todo.cli` — distribution task list (action, releases, install script, homebrew)
+
 ## [0.1.13] - 2026-03-29
 
 ### Fixed

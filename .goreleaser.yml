@@ -1,0 +1,40 @@
+version: 2
+
+project_name: scg
+
+builds:
+  - id: scg
+    main: ./cmd/scg/
+    binary: scg
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+
+archives:
+  - id: binary
+    format: binary
+    name_template: "scg-{{ .Os }}-{{ .Arch }}"
+
+checksum:
+  name_template: "checksums.txt"
+  algorithm: sha256
+
+changelog:
+  use: git
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^ci:"
+
+release:
+  disable: true  # GitLab releases handled by CI, not goreleaser

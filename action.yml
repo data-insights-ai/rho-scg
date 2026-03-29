@@ -1,0 +1,133 @@
+name: 'Supply Chain Guardian'
+description: 'Enforce dependency integrity and secret least-privilege in CI/CD pipelines'
+author: 'bds421'
+
+branding:
+  icon: 'shield'
+  color: 'green'
+
+inputs:
+  mode:
+    description: 'Operation mode: check (validate lockfile), scope (audit secrets for step), init (create lockfile)'
+    required: true
+  step-name:
+    description: 'Step name for scope mode'
+    required: false
+    default: ''
+  lockfile:
+    description: 'Path to scg.lock file'
+    required: false
+    default: 'scg.lock'
+  sanitize:
+    description: 'In scope mode, actually remove forbidden secrets from environment'
+    required: false
+    default: 'false'
+  no-verify:
+    description: 'Skip signature verification (not recommended)'
+    required: false
+    default: 'false'
+  json:
+    description: 'Output results as JSON'
+    required: false
+    default: 'false'
+  version:
+    description: 'SCG version to install (default: latest)'
+    required: false
+    default: 'latest'
+
+outputs:
+  status:
+    description: 'Result status: ok, drift_detected, violations_found, error'
+  exit-code:
+    description: 'SCG exit code (0=clean, 1=issues)'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Install SCG
+      shell: bash
+      run: |
+        VERSION="${{ inputs.version }}"
+        if [ "$VERSION" = "latest" ]; then
+          VERSION=""
+        fi
+
+        OS=$(uname -s | tr '[:upper:]' '[:lower:]')
+        ARCH=$(uname -m)
+        case "$ARCH" in
+          x86_64|amd64) ARCH="amd64" ;;
+          aarch64|arm64) ARCH="arm64" ;;
+        esac
+
+        BINARY="scg-${OS}-${ARCH}"
+        URL="https://scg.bds421.com/releases/${VERSION:-latest}/${BINARY}"
+
+        echo "::group::Install SCG"
+        curl -sSL -o /usr/local/bin/scg "$URL" || {
+          echo "::error::Failed to download SCG from $URL"
+          exit 1
+        }
+        chmod +x /usr/local/bin/scg
+        scg version
+        echo "::endgroup::"
+
+    - name: Run SCG
+      id: scg
+      shell: bash
+      run: |
+        ARGS=""
+        MODE="${{ inputs.mode }}"
+
+        case "$MODE" in
+          check)
+            ARGS="check --lockfile ${{ inputs.lockfile }}"
+            if [ "${{ inputs.no-verify }}" = "true" ]; then
+              ARGS="$ARGS --no-verify"
+            fi
+            if [ "${{ inputs.json }}" = "true" ]; then
+              ARGS="$ARGS --json"
+            fi
+            ;;
+          scope)
+            if [ -z "${{ inputs.step-name }}" ]; then
+              echo "::error::step-name is required for scope mode"
+              exit 1
+            fi
+            ARGS="scope --step ${{ inputs.step-name }}"
+            if [ "${{ inputs.sanitize }}" = "true" ]; then
+              ARGS="$ARGS --sanitize"
+            fi
+            if [ "${{ inputs.json }}" = "true" ]; then
+              ARGS="$ARGS --json"
+            fi
+            ;;
+          init)
+            ARGS="init --lockfile ${{ inputs.lockfile }}"
+            if [ "${{ inputs.json }}" = "true" ]; then
+              ARGS="$ARGS --json"
+            fi
+            ;;
+          audit)
+            ARGS="audit --lockfile ${{ inputs.lockfile }}"
+            if [ "${{ inputs.json }}" = "true" ]; then
+              ARGS="$ARGS --json"
+            fi
+            ;;
+          *)
+            echo "::error::Unknown mode: $MODE (use check, scope, init, or audit)"
+            exit 1
+            ;;
+        esac
+
+        echo "::group::SCG $MODE"
+        EXIT_CODE=0
+        scg $ARGS || EXIT_CODE=$?
+        echo "::endgroup::"
+
+        echo "exit-code=$EXIT_CODE" >> "$GITHUB_OUTPUT"
+        if [ "$EXIT_CODE" -eq 0 ]; then
+          echo "status=ok" >> "$GITHUB_OUTPUT"
+        else
+          echo "status=issues_found" >> "$GITHUB_OUTPUT"
+          exit $EXIT_CODE
+        fi
