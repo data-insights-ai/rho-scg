@@ -47,16 +47,31 @@ func doCheck(ctx context.Context, logger *slog.Logger, lockfilePath, ghToken str
 		printWarning(os.Stdout, "%s", w)
 	}
 
-	// 6. Report results.
-	if len(results) == 0 {
-		totalTools := 0
-		for _, p := range lf.Pipelines {
-			for _, s := range p.Steps {
-				totalTools += len(s.Tools)
-			}
+	// 6. Count what was actually verified vs skipped.
+	totalTools := 0
+	for _, p := range lf.Pipelines {
+		for _, s := range p.Steps {
+			totalTools += len(s.Tools)
 		}
+	}
+	verified := totalTools - len(warnings)
+
+	// If nothing was verified, that's a failure — not "clean".
+	if verified <= 0 && totalTools > 0 {
+		fmt.Fprintln(os.Stderr)
+		printFailure(os.Stderr, "No tools could be verified (%d skipped). Set GITHUB_TOKEN or check network.", len(warnings))
+		fmt.Fprintln(os.Stderr)
+		return fmt.Errorf("verification failed: 0 of %d tools checked", totalTools)
+	}
+
+	// Report results.
+	if len(results) == 0 {
 		fmt.Fprintln(os.Stdout)
-		printSuccess(os.Stdout, "All %d tool entries verified, no drift detected.", totalTools)
+		if len(warnings) > 0 {
+			printWarning(os.Stdout, "%d of %d tools verified, %d skipped.", verified, totalTools, len(warnings))
+		} else {
+			printSuccess(os.Stdout, "All %d tool entries verified, no drift detected.", totalTools)
+		}
 		fmt.Fprintln(os.Stdout)
 		return nil
 	}
