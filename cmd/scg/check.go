@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -132,7 +133,16 @@ func detectDriftWithPartialFailure(ctx context.Context, lf *manifest.Lockfile, r
 
 				live, err := res.Resolve(ctx, tool.Reference)
 				if err != nil {
-					warnings = append(warnings, fmt.Sprintf("could not resolve %s: %v — skipped", tool.Reference, err))
+					// Extract the root cause — skip nested "resolve X:" wrapping.
+					cause := err
+					for {
+						if unwrapped := errors.Unwrap(cause); unwrapped != nil {
+							cause = unwrapped
+						} else {
+							break
+						}
+					}
+					warnings = append(warnings, fmt.Sprintf("%s — %s", tool.Reference, cause))
 					continue
 				}
 
