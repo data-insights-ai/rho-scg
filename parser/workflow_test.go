@@ -101,12 +101,20 @@ jobs:
 		t.Fatal(err)
 	}
 
-	// Only checkout should be parsed (local and docker:// skipped).
-	if len(wf.Tools) != 1 {
-		t.Fatalf("tools count = %d, want 1 (only checkout)", len(wf.Tools))
+	// Local actions skipped, docker:// and checkout parsed.
+	if len(wf.Tools) != 2 {
+		t.Fatalf("tools count = %d, want 2 (docker + checkout)", len(wf.Tools))
 	}
-	if wf.Tools[0].Reference != "actions/checkout@v4" {
-		t.Errorf("tool = %q, want actions/checkout@v4", wf.Tools[0].Reference)
+
+	ecosystems := map[string]bool{}
+	for _, tool := range wf.Tools {
+		ecosystems[tool.Ecosystem] = true
+	}
+	if !ecosystems["docker"] {
+		t.Error("expected docker ecosystem from docker:// action")
+	}
+	if !ecosystems["github_action"] {
+		t.Error("expected github_action ecosystem from checkout")
 	}
 }
 

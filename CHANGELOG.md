@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.10] - 2026-03-29
+
+### Fixed (security review findings)
+- **Signatures now mandatory by default.** Unsigned lockfiles fail `scg check`. Use `--no-verify` to skip (not recommended). Previously signatures were optional (default fail-open).
+- **All 4 ecosystem resolvers registered in `scg check`.** Docker, PyPI, npm drift is now detected. Previously only GitHub Actions was checked — other ecosystems were silently skipped.
+- **`docker://` images in workflows now parsed.** `uses: docker://alpine:3.19` is extracted as a Docker ecosystem dependency. Previously explicitly skipped with a TODO comment.
+- **Partial failure in drift detection.** If one tool can't be resolved (API down, rate limited), other tools are still checked. Warnings report which tools were skipped. Previously one failure killed the entire check.
+- **Removed OIDC signing theater.** `oidc+ed25519` signature algorithm removed — it embedded unverified OIDC claims, providing false sense of identity binding. CLI now uses honest ephemeral ed25519. Identity-bound signing (OIDC + JWKS verification) will be a platform-tier feature with real cryptographic verification.
+- **`scg check` no longer bootstraps graph.** It reads the lockfile and re-resolves directly — no wasted DSM profile loading.
+
+### Changed
+- `--strict` flag renamed to `--no-verify` (inverted default: signatures now required)
+- `VerifyOIDCClaims()` retained for platform-tier use (validates exp, nbf, issuer)
+- `OIDCSigner` type removed (was security theater without JWKS verification)
+- `Ed25519Verifier` only accepts `"ed25519"` algorithm (removed `"oidc+ed25519"`)
+
 ## [0.1.9] - 2026-03-28
 
 ### Added

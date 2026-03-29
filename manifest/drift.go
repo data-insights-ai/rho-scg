@@ -80,8 +80,8 @@ func DetectDrift(ctx context.Context, lf *Lockfile, resolvers map[resolver.Ecosy
 						Detail: fmt.Sprintf(
 							"ALERT: %s resolved to different digest without version change. "+
 								"Locked: %s, Live: %s. Possible tag hijack.",
-							tool.Reference, tool.Hash[:minLen(len(tool.Hash), 16)],
-							live.Hash[:minLen(len(live.Hash), 16)],
+							tool.Reference, tool.Hash[:MinLen(len(tool.Hash), 16)],
+							live.Hash[:MinLen(len(live.Hash), 16)],
 						),
 					})
 				}
@@ -92,7 +92,8 @@ func DetectDrift(ctx context.Context, lf *Lockfile, resolvers map[resolver.Ecosy
 	return results, nil
 }
 
-func minLen(a, b int) int {
+// MinLen returns the smaller of a and b.
+func MinLen(a, b int) int {
 	if a < b {
 		return a
 	}

@@ -100,12 +100,12 @@ func runCheck(ctx context.Context, logger *slog.Logger, args []string) error {
 	fs := flag.NewFlagSet("check", flag.ExitOnError)
 	lockfile := fs.String("lockfile", "scg.lock", "lockfile path")
 	jsonOut := fs.Bool("json", false, "output results as JSON")
-	strict := fs.Bool("strict", false, "fail-closed: reject unsigned lockfiles, treat warnings as errors")
+	noVerify := fs.Bool("no-verify", false, "skip signature verification (not recommended)")
 	fs.Parse(args)
 
 	ghToken := os.Getenv("GITHUB_TOKEN")
 
-	err := doCheck(ctx, logger, *lockfile, ghToken, *strict)
+	err := doCheck(ctx, logger, *lockfile, ghToken, *noVerify)
 	if *jsonOut {
 		result := &JSONResult{Command: "check", Status: "ok", ExitCode: 0}
 		if err != nil {

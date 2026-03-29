@@ -76,24 +76,16 @@ func doInit(ctx context.Context, logger *slog.Logger, workflowDir, lockfilePath 
 	// 9. Build lockfile from parsed + resolved data.
 	lf := buildLockfile(workflows, resolved)
 
-	// 10. Sign lockfile (OIDC keyless if available, ed25519 fallback).
-	var signer manifest.Signer
-	if manifest.IsOIDCAvailable() {
-		oidcSigner, err := manifest.NewOIDCSigner()
-		if err != nil {
-			logger.Warn("OIDC signing failed, falling back to ed25519", "err", err)
-		} else {
-			signer = oidcSigner
-			logger.Info("signing with OIDC keyless", "issuer", oidcSigner.Issuer())
-		}
+	// 10. Sign lockfile with ephemeral ed25519.
+	// NOTE: Each init generates a new keypair. The public key is embedded in the
+	// lockfile for verification. This proves the lockfile wasn't tampered with
+	// after signing, but does NOT prove WHO signed it. Identity-bound signing
+	// (OIDC + JWKS verification) is a platform-tier feature.
+	_, privKey, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		return fmt.Errorf("generate signing key: %w", err)
 	}
-	if signer == nil {
-		_, privKey, err := ed25519.GenerateKey(rand.Reader)
-		if err != nil {
-			return fmt.Errorf("generate signing key: %w", err)
-		}
-		signer = manifest.NewEd25519Signer(privKey)
-	}
+	signer := manifest.NewEd25519Signer(privKey)
 	if err := manifest.SignLockfile(lf, signer); err != nil {
 		return fmt.Errorf("sign lockfile: %w", err)
 	}

@@ -1,129 +1,73 @@
-# OIDC Keyless Signing
+# Signing Model
 
-## Overview
+## Current: Ephemeral Ed25519
 
-SCG supports keyless lockfile signing using OIDC tokens from CI environments. No long-lived private keys to manage, rotate, or protect. The CI provider's identity proves who signed the lockfile.
+SCG currently signs lockfiles with an ephemeral ed25519 keypair generated at `scg init` time. The private key exists only in memory and is discarded after signing. The public key is embedded in the lockfile.
 
-## How It Works
+### What this proves
+- **Tamper detection**: If anyone modifies the lockfile after signing, the signature breaks.
+- `scg check` verifies the signature is valid against the embedded public key.
+
+### What this does NOT prove
+- **Identity**: You cannot verify WHO signed the lockfile. Each `scg init` run generates a new keypair. An attacker could generate their own keypair, sign a malicious lockfile, and it would pass verification.
+- **Chain of trust**: There's no connection between lockfile version N and version N+1. A completely different key signs each one.
+
+### Why this is acceptable for now
+The lockfile is committed to git. Git's own integrity (commit signing, branch protection) provides the identity layer. If you trust your git history, you trust the lockfile. The ed25519 signature prevents post-commit tampering (e.g., a compromised CI cache serving a modified lockfile).
+
+## Planned: OIDC + JWKS (Platform Tier)
+
+The SCG Platform will add identity-bound signing:
 
 ```
-CI Environment                          SCG
-──────────────────                      ─────────────
-1. CI provides OIDC token
-   (JWT with issuer + subject claims)
-                                        2. Detect OIDC token from env
-                                        3. Extract issuer + subject claims
-                                        4. Generate ephemeral ed25519 keypair
-                                        5. Sign lockfile with ephemeral private key
-                                        6. Embed in lockfile:
-                                           - ed25519 signature
-                                           - ephemeral public key
-                                           - OIDC issuer URL
-                                           - OIDC subject claim
-                                        7. Throw away ephemeral private key
+1. CI provides OIDC token (GitHub Actions, GitLab CI, etc.)
+2. SCG Platform verifies the JWT signature via JWKS from the issuer
+3. Platform validates claims: issuer, subject, expiration, not-before
+4. Platform signs the lockfile with its own key (not ephemeral)
+5. Lockfile contains: platform signature + verified OIDC identity
+6. Verification checks: platform signature + OIDC identity matches policy
 ```
 
-The ephemeral private key exists only in memory for the duration of the signing operation. It is never written to disk, never stored, never reused.
+This proves both integrity AND identity. The platform's signing key is the trust anchor, not an ephemeral key.
 
-## Verification
+### Why not do OIDC in the CLI?
 
-To verify an OIDC-signed lockfile:
+We tried it. It was security theater. The CLI can extract OIDC claims from a JWT token, but without JWKS verification, it can't prove the token is genuine. An attacker could forge an OIDC token with arbitrary claims, and the CLI would accept it.
 
-1. Check `signature.algorithm == "oidc+ed25519"`
-2. Verify the ed25519 signature against the embedded ephemeral public key
-3. Check that the OIDC issuer matches your expected CI provider
-4. Check that the OIDC subject matches your expected repository/workflow
+Real OIDC verification requires:
+1. Fetching the JWKS keyset from the issuer's well-known endpoint
+2. Cryptographically verifying the JWT signature against the keyset
+3. Checking token expiration and audience
 
-Step 2 proves the lockfile wasn't tampered with. Steps 3-4 prove who signed it.
+This is networking infrastructure (HTTP client, key caching, retry logic) that belongs in the platform, not a CLI tool that should work offline.
 
-## Supported CI Providers
+### VerifyOIDCClaims (available now)
 
-| CI Provider | Environment Variable | Issuer |
-|---|---|---|
-| GitHub Actions | `ACTIONS_ID_TOKEN_REQUEST_TOKEN` | `https://token.actions.githubusercontent.com` |
-| GitLab CI | `CI_JOB_JWT_V2` | GitLab instance URL |
-| Generic | `OIDC_TOKEN` | Depends on provider |
+The `manifest.VerifyOIDCClaims()` function validates the structural and temporal claims of an OIDC JWT:
+- Checks issuer is present
+- Checks expiration (`exp`) against current time
+- Checks not-before (`nbf`) with 30-second skew tolerance
 
-SCG auto-detects the OIDC token by checking these environment variables in order. If none is found, it falls back to ephemeral ed25519 signing (no identity binding).
+This is used by the platform tier for claim validation after JWKS signature verification.
 
-## GitHub Actions Setup
-
-To use OIDC signing in GitHub Actions, your workflow needs the `id-token: write` permission:
-
-```yaml
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    permissions:
-      id-token: write    # Required for OIDC signing
-      contents: read
-    steps:
-      - uses: actions/checkout@v4
-      - run: scg init    # Automatically uses OIDC signing
-```
-
-The OIDC token contains claims like:
-```json
-{
-  "iss": "https://token.actions.githubusercontent.com",
-  "sub": "repo:owner/repo:ref:refs/heads/main",
-  "aud": "https://github.com/owner/repo",
-  "repository": "owner/repo",
-  "workflow": "CI"
-}
-```
-
-SCG embeds `iss` and `sub` in the lockfile signature, allowing verification that the lockfile was signed during a specific workflow run in a specific repository.
-
-## Lockfile Signature Format
-
-### OIDC-signed lockfile
-
-```json
-{
-  "signature": {
-    "algorithm": "oidc+ed25519",
-    "value": "base64-encoded-ed25519-signature",
-    "public_key": "base64-encoded-ephemeral-public-key",
-    "issuer": "https://token.actions.githubusercontent.com",
-    "subject": "repo:owner/repo:ref:refs/heads/main"
-  }
-}
-```
-
-### Ed25519-signed lockfile (fallback)
+## Signature Format
 
 ```json
 {
   "signature": {
     "algorithm": "ed25519",
     "value": "base64-encoded-ed25519-signature",
-    "public_key": "base64-encoded-public-key"
+    "public_key": "base64-encoded-ephemeral-public-key"
   }
 }
 ```
 
-## Security Properties
+The signature covers the entire lockfile content with the `signature` field set to null. Any modification to any field invalidates the signature.
 
-| Property | OIDC Keyless | Ed25519 Keypair |
-|---|---|---|
-| Key management | None — ephemeral keys | Must protect private key |
-| Identity binding | CI identity proven via OIDC claims | No identity — anyone with the key |
-| Tamper evidence | Ed25519 signature | Ed25519 signature |
-| Works offline | No — needs CI OIDC provider | Yes |
-| Works locally | No — no OIDC token available | Yes |
+## Verification
 
-## Fallback Behavior
-
-SCG automatically selects the signing method:
-
-1. If `ACTIONS_ID_TOKEN_REQUEST_TOKEN`, `CI_JOB_JWT_V2`, or `OIDC_TOKEN` is set → OIDC keyless
-2. Otherwise → ephemeral ed25519 (no identity binding)
-
-This means `scg init` on a developer machine uses ed25519, and the same command in CI uses OIDC. No configuration needed.
-
-## Limitations
-
-- **No transparency log.** SCG does not currently record signing events in a Rekor-like transparency log. The OIDC claims are embedded in the lockfile but not publicly auditable. Transparency log support is planned for the platform tier.
-- **No JWKS verification at sign time.** SCG extracts OIDC claims without verifying the JWT signature during signing. Full JWKS-based verification is performed at check time (when the lockfile is validated). This is intentional — the CI environment is trusted at sign time.
-- **Token expiry.** OIDC tokens have short lifetimes (typically 5-15 minutes). The token must be valid when `scg init` runs. SCG does not refresh tokens.
+```bash
+# Signatures are mandatory by default
+scg check                    # fails if unsigned
+scg check --no-verify        # skips verification (not recommended)
+```

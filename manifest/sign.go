@@ -45,7 +45,7 @@ type Ed25519Verifier struct{}
 
 // Verify checks an ed25519 signature against the embedded public key.
 func (v *Ed25519Verifier) Verify(data []byte, sig *Signature) error {
-	if sig.Algorithm != "ed25519" && sig.Algorithm != "oidc+ed25519" {
+	if sig.Algorithm != "ed25519" {
 		return fmt.Errorf("unsupported algorithm: %s", sig.Algorithm)
 	}
 

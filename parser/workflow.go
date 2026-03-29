@@ -80,9 +80,34 @@ func parseToolRef(uses, stepName, jobName string) *ToolRef {
 		return nil
 	}
 
-	// Skip Docker actions (e.g. docker://image:tag)
+	// Handle Docker image actions (e.g. docker://alpine:3.19).
 	if strings.HasPrefix(uses, "docker://") {
-		return nil // TODO: handle as EcoDocker
+		imageRef := uses[len("docker://"):]
+		if imageRef == "" {
+			return nil
+		}
+		name := imageRef
+		version := "latest"
+		if colonIdx := strings.LastIndex(imageRef, ":"); colonIdx >= 0 {
+			potentialTag := imageRef[colonIdx+1:]
+			if !strings.Contains(potentialTag, "/") {
+				name = imageRef[:colonIdx]
+				version = potentialTag
+			}
+		}
+		owner := ""
+		if slashIdx := strings.LastIndex(name, "/"); slashIdx >= 0 {
+			owner = name[:slashIdx]
+		}
+		return &ToolRef{
+			Ecosystem: "docker",
+			Reference: imageRef,
+			Owner:     owner,
+			Name:      name,
+			Version:   version,
+			StepName:  stepName,
+			JobName:   jobName,
+		}
 	}
 
 	// Parse owner/repo@version
