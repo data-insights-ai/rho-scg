@@ -1,15 +1,21 @@
 # SCG Deployment
 
-Static file server for `scg.bds421.com` — serves install script, release binaries, and landing page.
+Two services on the same server, separate subdomains:
+
+```
+scg.bds421.com       → nginx (open source: install script, binaries, landing page)
+api.scg.bds421.com   → scgd  (platform: REST API, auth required, closed source)
+```
 
 ## Architecture
 
 ```
-Internet → Traefik (HTTPS + Let's Encrypt) → nginx (static files)
+Internet → Traefik (HTTPS + Let's Encrypt) → nginx (static) | scgd (API)
 ```
 
-- **Traefik v2.11**: TLS termination, automatic cert renewal, HTTP→HTTPS redirect
+- **Traefik v2.11**: TLS termination per subdomain, automatic cert renewal
 - **nginx:alpine**: Serves install.sh, release binaries, landing page
+- **scgd**: Platform daemon (separate repo: `sigma/scg-platform`)
 
 ## Server
 
