@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.17] - 2026-03-29
+
+### Added
+- **Platform integration**: `SCG_API_KEY=xxx scg check` routes all resolution through the SCG Platform API at `api.scg.bds421.com`. Pre-computed hashes, no registry rate limits.
+- **Platform resolver** (`platform/resolver.go`): implements `resolver.Resolver` interface backed by platform API GET `/v1/resolve`.
+- **Platform client** (`platform/client.go`): full implementation with GET, POST, auth headers, 10MB response limits, error handling for 401/403/404/429.
+- **Response caching**: 5-minute TTL in-memory cache for platform API responses. Avoids redundant calls for the same tool within a check run.
+- **Graceful fallback**: when `SCG_API_KEY` is set but platform is unavailable, `scg check` continues with warnings (partial failure). When not set, uses local resolvers as before.
+- **`platform/types.go`**: `CheckResponse`, `DriftEntry` types for batch check API.
+
+### Changed
+- `buildResolvers()` in `check.go` auto-selects platform resolvers when `SCG_API_KEY` is set, local resolvers otherwise.
+- Deploy docs updated for separate subdomains: `scg.bds421.com` (CLI), `api.scg.bds421.com` (platform).
+
 ## [0.1.14] - 2026-03-29
 
 ### Added

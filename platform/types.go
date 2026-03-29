@@ -35,6 +35,21 @@ type ForbiddenSpec struct {
 	Reason  string `json:"reason"`
 }
 
+// CheckResponse is the platform's response for a batch check request.
+type CheckResponse struct {
+	Status string       `json:"status"` // "clean" or "drift_detected"
+	Drift  []DriftEntry `json:"drift,omitempty"`
+}
+
+// DriftEntry is a single drift finding from the platform.
+type DriftEntry struct {
+	Ecosystem  string `json:"ecosystem"`
+	Reference  string `json:"reference"`
+	LockedHash string `json:"locked_hash"`
+	LiveHash   string `json:"live_hash"`
+	Severity   string `json:"severity"`
+}
+
 // HistoryEntry is a single entry in a tool's resolution history.
 type HistoryEntry struct {
 	Hash       string    `json:"hash"`

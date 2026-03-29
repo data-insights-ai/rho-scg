@@ -124,18 +124,16 @@ internal/testutil  TestGraph(t) helper
 - Every public function gets a direct test
 - Coverage gate: 80% per package
 
-## Current State (v0.1.13)
+## Current State (v0.1.17)
 
 - All 5 commands working: `init`, `check`, `update`, `scope`, `audit`
-- 4 ecosystems: GitHub Actions, Docker, PyPI, npm (all checked in drift detection)
-- Signatures mandatory by default (`--no-verify` to skip)
-- Honest ephemeral ed25519 signing (no fake OIDC identity claims)
-- 30 embedded DSM security profiles
-- `--json` flag, colored output, `docker://` workflow images parsed
-- Partial failure in drift detection (per-tool errors don't kill check)
-- `scg check` no longer bootstraps graph (reads lockfile + re-resolves directly)
+- 4 ecosystems: GitHub Actions, Docker, PyPI, npm
+- Platform integration: `SCG_API_KEY=xxx scg check` uses platform API (pre-computed hashes)
+- Graceful fallback: platform unavailable → local resolution
+- Response caching: 5 min TTL in-memory for platform responses
+- Signatures mandatory, `--sanitize` for scope, `--json` output, colored terminal
 - 119 tests + 4 fuzz targets, race clean
-- Next: Phase 3 (Platform MVP)
+- Live: scg.bds421.com (CLI), api.scg.bds421.com (platform)
 - See `tasks/todo.md` for checklist
 - See `tasks/todo.platform` for Platform roadmap
 

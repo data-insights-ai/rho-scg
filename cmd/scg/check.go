@@ -6,7 +6,9 @@ import (
 	"log/slog"
 	"os"
 
+	"gitlab2024.bds421-cloud.com/bds421/rho/supply-chain-guardian/internal/config"
 	"gitlab2024.bds421-cloud.com/bds421/rho/supply-chain-guardian/manifest"
+	"gitlab2024.bds421-cloud.com/bds421/rho/supply-chain-guardian/platform"
 	"gitlab2024.bds421-cloud.com/bds421/rho/supply-chain-guardian/resolver"
 )
 
@@ -73,7 +75,21 @@ func doCheck(ctx context.Context, logger *slog.Logger, lockfilePath, ghToken str
 }
 
 // buildResolvers creates resolvers for all supported ecosystems.
+// If a platform API key is set, uses platform resolvers (pre-computed, faster).
+// Otherwise falls back to local resolvers (direct registry API calls).
 func buildResolvers(ghToken string) map[resolver.Ecosystem]resolver.Resolver {
+	cfg := config.Load()
+
+	if cfg.PlatformAPIKey != "" {
+		client := platform.NewClient(cfg.PlatformBaseURL, cfg.PlatformAPIKey)
+		return map[resolver.Ecosystem]resolver.Resolver{
+			resolver.EcoGitHubAction: platform.NewPlatformResolver(client, resolver.EcoGitHubAction),
+			resolver.EcoDocker:       platform.NewPlatformResolver(client, resolver.EcoDocker),
+			resolver.EcoPyPI:         platform.NewPlatformResolver(client, resolver.EcoPyPI),
+			resolver.EcoNPM:          platform.NewPlatformResolver(client, resolver.EcoNPM),
+		}
+	}
+
 	return map[resolver.Ecosystem]resolver.Resolver{
 		resolver.EcoGitHubAction: resolver.NewGitHubResolver(ghToken),
 		resolver.EcoDocker:       resolver.NewDockerResolver(),

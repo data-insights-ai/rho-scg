@@ -123,9 +123,9 @@ All commands support `--json` flag (planned) for structured output:
 | Ecosystem | Config files | Status |
 |---|---|---|
 | GitHub Actions | `.github/workflows/*.yml` | Implemented |
-| Docker | `Dockerfile` | Planned |
-| PyPI | `requirements.txt`, `pyproject.toml` | Planned |
-| npm | `package.json`, `package-lock.json` | Planned |
+| Docker | `Dockerfile` | Implemented |
+| PyPI | `requirements.txt`, `pyproject.toml` | Implemented |
+| npm | `package.json`, `package-lock.json` | Implemented |
 | Go | `go.mod`, `go.sum` | Planned |
 | Helm | `Chart.yaml` | Planned |
 
@@ -136,19 +136,17 @@ SCG models dependencies as a temporal knowledge graph:
 - **Nodes:** Tool, Digest, Step, Secret, Pipeline, Profile, SecretPattern
 - **Key relationship:** `RESOLVES_TO` (Tool -> Digest) is temporal — carries ValidFrom/ValidTo timestamps enabling drift detection over time
 
-## Current Status (v0.1.10)
+## Current Status (v0.1.17)
 
 - All 5 commands working: `init`, `check`, `update`, `scope`, `audit`
 - 4 ecosystems: GitHub Actions, Docker, PyPI, npm
-- Signatures mandatory by default (ephemeral ed25519)
-- 30 embedded security profiles
-- `--json` flag, colored output, partial failure handling
+- Platform integration: `SCG_API_KEY=xxx` uses pre-computed hashes from api.scg.bds421.com
+- Graceful fallback: platform unavailable → local resolution
+- 5 min response cache for platform API calls
 - 119 tests + 4 fuzz targets, race clean
 
 ## Limitations
 
 - Go and Helm ecosystems not yet implemented
-- Platform API integration is stubbed (local resolution only)
-- Identity-bound signing (OIDC + JWKS) is a platform-tier feature, not yet implemented
-- No transparency log integration yet
-- Ephemeral keys — each `scg init` generates a new keypair (no chain of trust across versions)
+- Identity-bound signing (OIDC + JWKS) planned for platform tier
+- Ephemeral ed25519 keys — no chain of trust across lockfile versions
