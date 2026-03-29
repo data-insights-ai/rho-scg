@@ -15,7 +15,7 @@ import (
 
 // doCheck validates a lockfile against live resolution.
 // Signatures are required by default. Use --no-verify to skip (not recommended).
-func doCheck(ctx context.Context, logger *slog.Logger, lockfilePath, ghToken string, noVerify bool) error {
+func doCheck(ctx context.Context, logger *slog.Logger, lockfilePath string, noVerify bool) error {
 	// 1. Read lockfile.
 	lf, err := manifest.ReadLockfile(lockfilePath)
 	if err != nil {
@@ -35,7 +35,7 @@ func doCheck(ctx context.Context, logger *slog.Logger, lockfilePath, ghToken str
 	}
 
 	// 3. Build resolvers for ALL ecosystems.
-	resolvers := buildResolvers(ghToken)
+	resolvers := buildResolvers()
 
 	// 4. Detect drift (continues on per-tool errors).
 	results, warnings, err := detectDriftWithPartialFailure(ctx, lf, resolvers, logger)
@@ -60,7 +60,7 @@ func doCheck(ctx context.Context, logger *slog.Logger, lockfilePath, ghToken str
 	// If nothing was verified, that's a failure — not "clean".
 	if verified <= 0 && totalTools > 0 {
 		fmt.Fprintln(os.Stderr)
-		printFailure(os.Stderr, "No tools could be verified (%d skipped). Set GITHUB_TOKEN or check network.", len(warnings))
+		printFailure(os.Stderr, "No tools could be verified (%d skipped). Rate limited or platform unavailable. Try again later or set SCG_API_KEY for higher limits.", len(warnings))
 		fmt.Fprintln(os.Stderr)
 		return fmt.Errorf("verification failed: 0 of %d tools checked", totalTools)
 	}
@@ -90,27 +90,17 @@ func doCheck(ctx context.Context, logger *slog.Logger, lockfilePath, ghToken str
 	return fmt.Errorf("drift detected: %d tool(s) changed", len(results))
 }
 
-// buildResolvers creates resolvers for all supported ecosystems.
-// If a platform API key is set, uses platform resolvers (pre-computed, faster).
-// Otherwise falls back to local resolvers (direct registry API calls).
-func buildResolvers(ghToken string) map[resolver.Ecosystem]resolver.Resolver {
+// buildResolvers creates platform resolvers for all supported ecosystems.
+// The platform IS the resolver. No GitHub token needed.
+func buildResolvers() map[resolver.Ecosystem]resolver.Resolver {
 	cfg := config.Load()
-
-	if cfg.PlatformAPIKey != "" {
-		client := platform.NewClient(cfg.PlatformBaseURL, cfg.PlatformAPIKey)
-		return map[resolver.Ecosystem]resolver.Resolver{
-			resolver.EcoGitHubAction: platform.NewPlatformResolver(client, resolver.EcoGitHubAction),
-			resolver.EcoDocker:       platform.NewPlatformResolver(client, resolver.EcoDocker),
-			resolver.EcoPyPI:         platform.NewPlatformResolver(client, resolver.EcoPyPI),
-			resolver.EcoNPM:          platform.NewPlatformResolver(client, resolver.EcoNPM),
-		}
-	}
+	client := platform.NewClient(cfg.PlatformBaseURL, cfg.PlatformAPIKey)
 
 	return map[resolver.Ecosystem]resolver.Resolver{
-		resolver.EcoGitHubAction: resolver.NewGitHubResolver(ghToken),
-		resolver.EcoDocker:       resolver.NewDockerResolver(),
-		resolver.EcoPyPI:         resolver.NewPyPIResolver(),
-		resolver.EcoNPM:          resolver.NewNPMResolver(),
+		resolver.EcoGitHubAction: platform.NewPlatformResolver(client, resolver.EcoGitHubAction),
+		resolver.EcoDocker:       platform.NewPlatformResolver(client, resolver.EcoDocker),
+		resolver.EcoPyPI:         platform.NewPlatformResolver(client, resolver.EcoPyPI),
+		resolver.EcoNPM:          platform.NewPlatformResolver(client, resolver.EcoNPM),
 	}
 }
 

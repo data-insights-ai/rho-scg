@@ -10,10 +10,8 @@ import (
 )
 
 // doUpdate re-resolves all dependencies and rewrites the lockfile.
-// This is essentially scg init that overwrites an existing lockfile.
 func doUpdate(ctx context.Context, logger *slog.Logger, workflowDir, lockfilePath string) error {
-	ghToken := os.Getenv("GITHUB_TOKEN")
-	res := resolver.NewGitHubResolver(ghToken)
+	res := platformResolver(resolver.EcoGitHubAction)
 
 	fmt.Fprintf(os.Stdout, "\n  Updating %s ...\n", lockfilePath)
 

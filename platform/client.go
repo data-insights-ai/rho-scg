@@ -58,10 +58,6 @@ func (c *Client) IsConfigured() bool {
 
 // Resolve fetches a pre-computed resolution from the platform.
 func (c *Client) Resolve(ctx context.Context, ecosystem, reference string) (*ResolveResponse, error) {
-	if !c.IsConfigured() {
-		return nil, ErrNotConfigured
-	}
-
 	cacheKey := "resolve:" + ecosystem + ":" + reference
 	if cached := c.getCache(cacheKey); cached != nil {
 		return cached.(*ResolveResponse), nil
@@ -79,10 +75,6 @@ func (c *Client) Resolve(ctx context.Context, ecosystem, reference string) (*Res
 
 // FetchProfile fetches a curated security profile from the platform.
 func (c *Client) FetchProfile(ctx context.Context, ecosystem, reference string) (*ProfileResponse, error) {
-	if !c.IsConfigured() {
-		return nil, ErrNotConfigured
-	}
-
 	cacheKey := "profile:" + ecosystem + ":" + reference
 	if cached := c.getCache(cacheKey); cached != nil {
 		return cached.(*ProfileResponse), nil
@@ -118,7 +110,9 @@ func (c *Client) get(ctx context.Context, path string, dst any) error {
 	if err != nil {
 		return fmt.Errorf("create request: %w", err)
 	}
-	req.Header.Set("Authorization", "Bearer "+c.apiKey)
+	if c.apiKey != "" {
+		req.Header.Set("Authorization", "Bearer "+c.apiKey)
+	}
 	req.Header.Set("Accept", "application/json")
 
 	resp, err := c.httpClient.Do(req)

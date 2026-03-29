@@ -5,10 +5,7 @@ import "os"
 
 // SCGConfig holds all SCG configuration values.
 type SCGConfig struct {
-	// GitHubToken is used for GitHub API authentication.
-	GitHubToken string
-
-	// PlatformAPIKey enables access to the SCG platform (paid tier).
+	// PlatformAPIKey for higher rate limits (optional, 20/hr without).
 	PlatformAPIKey string
 
 	// PlatformBaseURL is the SCG platform API endpoint.
@@ -30,7 +27,6 @@ type SCGConfig struct {
 // Load reads configuration from environment variables with sensible defaults.
 func Load() *SCGConfig {
 	return &SCGConfig{
-		GitHubToken:     os.Getenv("GITHUB_TOKEN"),
 		PlatformAPIKey:  os.Getenv("SCG_API_KEY"),
 		PlatformBaseURL: envOrDefault("SCG_PLATFORM_URL", "https://api.scg.bds421.com"),
 		LogLevel:        envOrDefault("SCG_LOG_LEVEL", "info"),

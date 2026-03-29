@@ -2,6 +2,9 @@
 //
 // SCG prevents supply chain attacks by enforcing dependency integrity
 // and secret least-privilege across CI/CD pipelines.
+//
+// All resolution goes through the SCG Platform (api.scg.bds421.com).
+// No GitHub token, Docker Hub account, or registry credentials needed.
 package main
 
 import (
@@ -12,6 +15,8 @@ import (
 	"os"
 	"os/signal"
 
+	"gitlab2024.bds421-cloud.com/bds421/rho/supply-chain-guardian/internal/config"
+	"gitlab2024.bds421-cloud.com/bds421/rho/supply-chain-guardian/platform"
 	"gitlab2024.bds421-cloud.com/bds421/rho/supply-chain-guardian/resolver"
 )
 
@@ -64,6 +69,14 @@ func makeLogger(verbose bool) *slog.Logger {
 	return slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: level}))
 }
 
+// platformResolver creates a resolver that queries the SCG Platform.
+// This is the ONLY way the CLI resolves dependencies. No local resolution.
+func platformResolver(eco resolver.Ecosystem) resolver.Resolver {
+	cfg := config.Load()
+	client := platform.NewClient(cfg.PlatformBaseURL, cfg.PlatformAPIKey)
+	return platform.NewPlatformResolver(client, eco)
+}
+
 func runInit(ctx context.Context, args []string) error {
 	fs := flag.NewFlagSet("init", flag.ExitOnError)
 	workflowDir := fs.String("workflows", ".github/workflows", "workflow directory to scan")
@@ -73,8 +86,7 @@ func runInit(ctx context.Context, args []string) error {
 	fs.Parse(args)
 
 	logger := makeLogger(*verbose)
-	ghToken := os.Getenv("GITHUB_TOKEN")
-	res := resolver.NewGitHubResolver(ghToken)
+	res := platformResolver(resolver.EcoGitHubAction)
 
 	err := doInit(ctx, logger, *workflowDir, *lockfile, res)
 	if *jsonOut {
@@ -102,9 +114,8 @@ func runCheck(ctx context.Context, args []string) error {
 	fs.Parse(args)
 
 	logger := makeLogger(*verbose)
-	ghToken := os.Getenv("GITHUB_TOKEN")
 
-	err := doCheck(ctx, logger, *lockfile, ghToken, *noVerify)
+	err := doCheck(ctx, logger, *lockfile, *noVerify)
 	if *jsonOut {
 		result := &JSONResult{Command: "check", Status: "ok", ExitCode: 0}
 		if err != nil {
@@ -146,8 +157,7 @@ func runScope(ctx context.Context, args []string) error {
 	}
 
 	logger := makeLogger(*verbose)
-	ghToken := os.Getenv("GITHUB_TOKEN")
-	res := resolver.NewGitHubResolver(ghToken)
+	res := platformResolver(resolver.EcoGitHubAction)
 
 	err := doScope(ctx, logger, *workflowDir, *stepName, res, *sanitize)
 	if *jsonOut {
@@ -175,8 +185,7 @@ func runAudit(ctx context.Context, args []string) error {
 	fs.Parse(args)
 
 	logger := makeLogger(*verbose)
-	ghToken := os.Getenv("GITHUB_TOKEN")
-	res := resolver.NewGitHubResolver(ghToken)
+	res := platformResolver(resolver.EcoGitHubAction)
 
 	err := doAudit(ctx, logger, *workflowDir, *lockfile, res)
 	if *jsonOut {
@@ -216,8 +225,8 @@ Flags (all commands):
   --workflows DIR       Workflow directory (default: .github/workflows)
 
 Environment:
-  GITHUB_TOKEN       GitHub API token (avoids rate limits)
-  SCG_API_KEY        SCG Platform API key (pre-computed hashes, no rate limits)
+  SCG_API_KEY        SCG Platform API key (higher rate limits, optional)
+  SCG_PLATFORM_URL   Platform URL (default: https://api.scg.bds421.com)
 
 Examples:
   scg init                          # scan and lock all dependencies

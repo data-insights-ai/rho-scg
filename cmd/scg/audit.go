@@ -41,8 +41,7 @@ func doAudit(ctx context.Context, logger *slog.Logger, workflowDir, lockfilePath
 		if err != nil {
 			return fmt.Errorf("read lockfile for drift check: %w", err)
 		}
-		ghToken := os.Getenv("GITHUB_TOKEN")
-		allResolvers := buildResolvers(ghToken)
+		allResolvers := buildResolvers()
 		var driftWarnings []string
 		driftResults, driftWarnings, err = detectDriftWithPartialFailure(ctx, lf, allResolvers)
 		if err != nil {

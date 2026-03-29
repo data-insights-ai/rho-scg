@@ -93,6 +93,17 @@ internal/testutil  TestGraph(t) helper
 
 ## Key Rules
 
+### Business Model — THE MOST IMPORTANT RULE
+- The platform (api.scg.bds421.com) is the ONLY resolver. Always. No exceptions.
+- The CLI NEVER calls GitHub, Docker Hub, PyPI, or npm APIs directly.
+- GITHUB_TOKEN is NOT used by the CLI. It is used by the platform's crawler on the server.
+- There is NO fallback to local resolution. If the platform is down, the check fails.
+- If a tool is not in the platform database, the answer is "not found" — not "let me ask GitHub."
+- The user does NOT need a GitHub token, a Docker Hub account, or any registry credentials.
+- ALL resolution goes through the platform. That is the product. That is the business.
+- Never add code that bypasses the platform. Never add "local resolution" as a fallback.
+- Rate tiers: 20/hr anonymous, 100/hr free account, 5000/hr Pro, 50000/hr Enterprise.
+
 ### Graph API
 - Never import `graph.Store` — use `*graph.Graph` only
 - Use `tkg_valid_from`/`tkg_valid_to` in relationship props for temporal semantics
