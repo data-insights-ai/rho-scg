@@ -55,9 +55,11 @@ func doInit(ctx context.Context, logger *slog.Logger, workflowDir, lockfilePath 
 	}
 	defer sg.Close()
 
-	if err := dsm.Bootstrap(ctx, sg.G); err != nil {
+	profileCount, err := dsm.Bootstrap(ctx, sg.G)
+	if err != nil {
 		return fmt.Errorf("bootstrap profiles: %w", err)
 	}
+	logger.Info("bootstrapped DSM profiles", "count", profileCount)
 
 	// 6. Build profile map from committed DSM data.
 	profileMap, err := buildProfileMap(sg.G)

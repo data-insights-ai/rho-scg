@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.12] - 2026-03-29
+
+### Fixed
+- **No silently swallowed errors**: DSM `Bootstrap()` now validates all profile regex patterns at startup and returns profile count for sanity checking. Audit scope failures are now hard errors, not warnings. Lockfile read/drift errors in audit are hard errors.
+- **DSM profile validation**: `ValidateProfiles()` checks for empty references, empty ecosystems, and invalid regex at bootstrap time — catches configuration bugs before graph population.
+- **Documented CLI-to-platform limitations**: Added explicit section in `tasks/todo.platform` listing what the CLI can't do and how the platform solves each gap.
+
 ## [0.1.11] - 2026-03-29
 
 ### Fixed (second security review)

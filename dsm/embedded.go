@@ -5,6 +5,7 @@ package dsm
 import (
 	"context"
 	"fmt"
+	"regexp"
 
 	scggraph "gitlab2024.bds421-cloud.com/bds421/rho/supply-chain-guardian/graph"
 	tkgraph "gitlab2024.bds421-cloud.com/bds421/rho/tkg/v3/pkg/graph"
@@ -393,13 +394,38 @@ var EmbeddedProfiles = []ProfileDef{
 	},
 }
 
+// ValidateProfiles checks all embedded profiles for correctness.
+// Called at init time to catch configuration bugs early.
+func ValidateProfiles() error {
+	for _, pd := range EmbeddedProfiles {
+		if pd.Reference == "" {
+			return fmt.Errorf("profile has empty reference")
+		}
+		if pd.Ecosystem == "" {
+			return fmt.Errorf("profile %s has empty ecosystem", pd.Reference)
+		}
+		for _, pat := range pd.ForbiddenPatterns {
+			if _, err := regexp.Compile(pat.Regex); err != nil {
+				return fmt.Errorf("profile %s has invalid regex %q: %w", pd.Reference, pat.Regex, err)
+			}
+		}
+	}
+	return nil
+}
+
 // Bootstrap populates the graph with embedded security profiles.
 // This creates Tool, Profile, Secret, and SecretPattern nodes along with
 // their relationships. Uses a transaction for atomicity.
-func Bootstrap(ctx context.Context, g *tkgraph.Graph) error {
+// Returns the count of profiles created for sanity checking.
+func Bootstrap(ctx context.Context, g *tkgraph.Graph) (int, error) {
+	if err := ValidateProfiles(); err != nil {
+		return 0, fmt.Errorf("invalid embedded profiles: %w", err)
+	}
+
 	tx := g.BeginTx()
 	defer tx.Rollback()
 
+	count := 0
 	for _, pd := range EmbeddedProfiles {
 		// Create or find the Tool node.
 		toolNode, err := tx.AddNode(
@@ -412,7 +438,7 @@ func Bootstrap(ctx context.Context, g *tkgraph.Graph) error {
 			},
 		)
 		if err != nil {
-			return fmt.Errorf("create tool %s: %w", pd.Reference, err)
+			return 0, fmt.Errorf("create tool %s: %w", pd.Reference, err)
 		}
 
 		// Create the Profile node.
@@ -425,7 +451,7 @@ func Bootstrap(ctx context.Context, g *tkgraph.Graph) error {
 			},
 		)
 		if err != nil {
-			return fmt.Errorf("create profile for %s: %w", pd.Reference, err)
+			return 0, fmt.Errorf("create profile for %s: %w", pd.Reference, err)
 		}
 
 		// Link Tool → Profile.
@@ -434,8 +460,9 @@ func Bootstrap(ctx context.Context, g *tkgraph.Graph) error {
 			toolNode, profileNode,
 			nil,
 		)
+		count++
 		if err != nil {
-			return fmt.Errorf("link tool→profile for %s: %w", pd.Reference, err)
+			return 0, fmt.Errorf("link tool→profile for %s: %w", pd.Reference, err)
 		}
 
 		// Create required secret nodes and REQUIRES relationships.
@@ -449,7 +476,7 @@ func Bootstrap(ctx context.Context, g *tkgraph.Graph) error {
 				},
 			)
 			if err != nil {
-				return fmt.Errorf("create secret %s for %s: %w", req.Name, pd.Reference, err)
+				return 0, fmt.Errorf("create secret %s for %s: %w", req.Name, pd.Reference, err)
 			}
 
 			_, err = tx.AddRelationship(
@@ -461,7 +488,7 @@ func Bootstrap(ctx context.Context, g *tkgraph.Graph) error {
 				},
 			)
 			if err != nil {
-				return fmt.Errorf("link profile→secret for %s: %w", pd.Reference, err)
+				return 0, fmt.Errorf("link profile→secret for %s: %w", pd.Reference, err)
 			}
 		}
 
@@ -475,7 +502,7 @@ func Bootstrap(ctx context.Context, g *tkgraph.Graph) error {
 				},
 			)
 			if err != nil {
-				return fmt.Errorf("create pattern %s for %s: %w", pat.Regex, pd.Reference, err)
+				return 0, fmt.Errorf("create pattern %s for %s: %w", pat.Regex, pd.Reference, err)
 			}
 
 			_, err = tx.AddRelationship(
@@ -484,12 +511,15 @@ func Bootstrap(ctx context.Context, g *tkgraph.Graph) error {
 				nil,
 			)
 			if err != nil {
-				return fmt.Errorf("link profile→pattern for %s: %w", pd.Reference, err)
+				return 0, fmt.Errorf("link profile→pattern for %s: %w", pd.Reference, err)
 			}
 		}
 	}
 
-	return tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return 0, err
+	}
+	return count, nil
 }
 
 // toolID extracts the Snowflake ID from a node for use in relationship creation.

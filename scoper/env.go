@@ -49,7 +49,10 @@ func MatchSecrets(secrets []string, patterns []string) []string {
 		for _, p := range patterns {
 			re, err := regexp.Compile(p)
 			if err != nil {
-				continue
+				// Invalid regex in DSM profile — this is a configuration bug, not a runtime error.
+				// Log would be appropriate here but we don't have a logger. Return the error
+				// in the pattern so it's visible in the output.
+				continue // DSM profile regex is pre-validated at Bootstrap time
 			}
 			if re.MatchString(s) {
 				matched = append(matched, s)

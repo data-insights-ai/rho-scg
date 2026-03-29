@@ -39,14 +39,17 @@ func doAudit(ctx context.Context, logger *slog.Logger, workflowDir, lockfilePath
 	if _, statErr := os.Stat(lockfilePath); statErr == nil {
 		lf, err := manifest.ReadLockfile(lockfilePath)
 		if err != nil {
-			logger.Warn("could not read lockfile for drift check", "err", err)
-		} else {
-			ghToken := os.Getenv("GITHUB_TOKEN")
-			allResolvers := buildResolvers(ghToken)
-			driftResults, _, err = detectDriftWithPartialFailure(ctx, lf, allResolvers)
-			if err != nil {
-				logger.Warn("drift detection failed", "err", err)
-			}
+			return fmt.Errorf("read lockfile for drift check: %w", err)
+		}
+		ghToken := os.Getenv("GITHUB_TOKEN")
+		allResolvers := buildResolvers(ghToken)
+		var driftWarnings []string
+		driftResults, driftWarnings, err = detectDriftWithPartialFailure(ctx, lf, allResolvers)
+		if err != nil {
+			return fmt.Errorf("drift detection: %w", err)
+		}
+		for _, w := range driftWarnings {
+			printWarning(os.Stdout, "%s", w)
 		}
 	}
 
@@ -57,7 +60,7 @@ func doAudit(ctx context.Context, logger *slog.Logger, workflowDir, lockfilePath
 	}
 	defer sg.Close()
 
-	if err := dsm.Bootstrap(ctx, sg.G); err != nil {
+	if _, err := dsm.Bootstrap(ctx, sg.G); err != nil {
 		return fmt.Errorf("bootstrap: %w", err)
 	}
 
@@ -76,8 +79,7 @@ func doAudit(ctx context.Context, logger *slog.Logger, workflowDir, lockfilePath
 		for _, tool := range wf.Tools {
 			result, err := scoper.Scope(ctx, sg.Engine, tool.StepName)
 			if err != nil {
-				logger.Warn("scope failed", "step", tool.StepName, "err", err)
-				continue
+				return fmt.Errorf("scope step %q: %w", tool.StepName, err)
 			}
 			if len(result.Violations) > 0 {
 				scopeResults = append(scopeResults, result)

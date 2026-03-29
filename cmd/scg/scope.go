@@ -62,7 +62,7 @@ func doScope(ctx context.Context, logger *slog.Logger, workflowDir, stepName str
 	}
 	defer sg.Close()
 
-	if err := dsm.Bootstrap(ctx, sg.G); err != nil {
+	if _, err := dsm.Bootstrap(ctx, sg.G); err != nil {
 		return fmt.Errorf("bootstrap profiles: %w", err)
 	}
 

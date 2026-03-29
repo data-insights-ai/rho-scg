@@ -48,7 +48,9 @@ func (p *DockerfileParser) Parse(path string, content []byte) (*WorkflowFile, er
 
 		ref, err := parseFromDirective(line)
 		if err != nil {
-			continue // skip unparseable FROM lines
+			// FROM with build args (${VAR}) or empty FROM — not trackable.
+			// This is expected for parameterized Dockerfiles, not an error.
+			continue
 		}
 
 		// Skip scratch base.
