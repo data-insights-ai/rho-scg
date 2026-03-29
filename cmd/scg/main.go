@@ -136,7 +136,7 @@ func runScope(ctx context.Context, logger *slog.Logger, args []string) error {
 	stepName := fs.String("step", "", "step name to scope (required)")
 	workflowDir := fs.String("workflows", ".github/workflows", "workflow directory to scan")
 	jsonOut := fs.Bool("json", false, "output results as JSON")
-	strict := fs.Bool("strict", false, "fail-closed: treat warnings as errors")
+	sanitize := fs.Bool("sanitize", false, "actually remove forbidden secrets from the environment (not just report)")
 	fs.Parse(args)
 
 	if *stepName == "" {
@@ -146,7 +146,7 @@ func runScope(ctx context.Context, logger *slog.Logger, args []string) error {
 	ghToken := os.Getenv("GITHUB_TOKEN")
 	res := resolver.NewGitHubResolver(ghToken)
 
-	err := doScope(ctx, logger, *workflowDir, *stepName, res, *strict)
+	err := doScope(ctx, logger, *workflowDir, *stepName, res, *sanitize)
 	if *jsonOut {
 		result := &JSONResult{Command: "scope", Status: "ok", ExitCode: 0}
 		if err != nil {

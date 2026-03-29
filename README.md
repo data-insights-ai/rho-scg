@@ -284,7 +284,7 @@ trivy-action@v1      -->  sha256:57a97c7e...  (immutable)
 
 ### Layer 2: Secret Scoping
 
-Each CI tool has a **security profile** defining what secrets it legitimately needs. `scg scope` strips anything the tool shouldn't see.
+Each CI tool has a **security profile** defining what secrets it legitimately needs. `scg scope` identifies forbidden secrets, and with `--sanitize` actually removes them from the environment before the next step runs.
 
 ```
 trivy-action profile:
@@ -305,7 +305,7 @@ Under the hood, SCG models dependencies as a [temporal knowledge graph](doc/arch
 | `scg init` | Scan workflows, resolve all dependencies, write `scg.lock` | 0 = success |
 | `scg check` | Validate `scg.lock` against live state | 0 = clean, 1 = drift |
 | `scg update` | Re-resolve all dependencies, update `scg.lock` | 0 = success |
-| `scg scope --step NAME` | Audit and sanitize secrets for a step | 0 = clean, 1 = violations |
+| `scg scope --step NAME` | Audit secrets for a step (add `--sanitize` to remove them) | 0 = clean, 1 = violations |
 | `scg audit` | Full security report (drift + secret exposure) | 0 = clean, 1 = issues |
 | `scg version` | Print version | 0 |
 

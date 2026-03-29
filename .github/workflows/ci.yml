@@ -1,0 +1,49 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+
+      - name: setup-go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+
+      - name: build
+        run: make build
+
+      - name: test
+        run: make test
+
+      - name: test-race
+        run: make test-race
+
+  security:
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+
+      - name: trivy-scan
+        uses: aquasecurity/trivy-action@v0.35.0
+        with:
+          scan-type: 'fs'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: codeql-init
+        uses: github/codeql-action/init@v3
+        with:
+          languages: go
+
+      - name: codeql-analyze
+        uses: github/codeql-action/analyze@v3

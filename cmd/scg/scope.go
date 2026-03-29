@@ -17,7 +17,8 @@ import (
 )
 
 // doScope audits a step's secret access against its tool's security profile.
-func doScope(ctx context.Context, logger *slog.Logger, workflowDir, stepName string, res resolver.Resolver, strict bool) error {
+// If sanitize is true, actually removes forbidden secrets from the environment.
+func doScope(ctx context.Context, logger *slog.Logger, workflowDir, stepName string, res resolver.Resolver, sanitize bool) error {
 	// 1. Discover and parse workflows to find the step and its tool.
 	paths, err := discoverWorkflows(workflowDir)
 	if err != nil {
@@ -42,11 +43,7 @@ func doScope(ctx context.Context, logger *slog.Logger, workflowDir, stepName str
 		}
 	}
 	if stepTool == nil {
-		if strict {
-			return fmt.Errorf("step %q not found or has no tool reference (--strict)", stepName)
-		}
-		printWarning(os.Stdout, "Step %q not found or has no tool reference", stepName)
-		return nil
+		return fmt.Errorf("step %q not found or has no tool reference", stepName)
 	}
 
 	// 2. Resolve the tool.
@@ -62,7 +59,8 @@ func doScope(ctx context.Context, logger *slog.Logger, workflowDir, stepName str
 	}
 	defer sg.Close()
 
-	if _, err := dsm.Bootstrap(ctx, sg.G); err != nil {
+	profileCount, err := dsm.Bootstrap(ctx, sg.G)
+	if err != nil {
 		return fmt.Errorf("bootstrap profiles: %w", err)
 	}
 
@@ -76,14 +74,28 @@ func doScope(ctx context.Context, logger *slog.Logger, workflowDir, stepName str
 		return fmt.Errorf("populate scope graph: %w", err)
 	}
 
+	// Sanity check: verify profile was linked.
+	baseRef := extractBaseRef(stepTool.Reference)
+	if _, hasProfile := profileMap[baseRef]; !hasProfile {
+		printWarning(os.Stdout, "No DSM profile for %s (%d profiles loaded) — secret scoping may be incomplete", stepTool.Reference, profileCount)
+	}
+
 	// 4. Run scoper query.
 	result, err := scoper.Scope(ctx, sg.Engine, stepName)
 	if err != nil {
 		return fmt.Errorf("scope: %w", err)
 	}
 
-	// 5. Print results.
-	printScopeResult(os.Stdout, result, stepTool)
+	// 5. If sanitize mode, actually remove blocked secrets from the environment.
+	if sanitize && len(result.Violations) > 0 {
+		for _, v := range result.Violations {
+			os.Unsetenv(v.Secret)
+			logger.Info("unset forbidden secret", "secret", v.Secret, "reason", v.Reason)
+		}
+	}
+
+	// 6. Print results.
+	printScopeResult(os.Stdout, result, stepTool, sanitize)
 
 	if len(result.Violations) > 0 {
 		return fmt.Errorf("%d secret violation(s) found", len(result.Violations))
@@ -171,7 +183,7 @@ func populateScopeGraph(
 	return tx.Commit()
 }
 
-func printScopeResult(w io.Writer, result *scoper.ScopeResult, tool *parser.ToolRef) {
+func printScopeResult(w io.Writer, result *scoper.ScopeResult, tool *parser.ToolRef, sanitized bool) {
 	fmt.Fprintf(w, "\n  Step: %s\n", bold(result.StepName))
 	fmt.Fprintf(w, "  Tool: %s\n", cyan(tool.Reference))
 
@@ -181,10 +193,18 @@ func printScopeResult(w io.Writer, result *scoper.ScopeResult, tool *parser.Tool
 		return
 	}
 
-	printFailure(w, "%d secret violation(s) found", len(result.Violations))
+	action := "found"
+	if sanitized {
+		action = "found and removed from environment"
+	}
+	printFailure(w, "%d secret violation(s) %s", len(result.Violations), action)
 	fmt.Fprintln(w)
 	for _, v := range result.Violations {
-		fmt.Fprintf(w, "    %s %s\n", red("BLOCKED:"), bold(v.Secret))
+		label := "BLOCKED:"
+		if sanitized {
+			label = "REMOVED:"
+		}
+		fmt.Fprintf(w, "    %s %s\n", red(label), bold(v.Secret))
 		fmt.Fprintf(w, "      Pattern: %s\n", dim(v.Pattern))
 		fmt.Fprintf(w, "      Reason:  %s\n", v.Reason)
 		fmt.Fprintf(w, "      Tool:    %s\n\n", dim(v.Tool))

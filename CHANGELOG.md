@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.13] - 2026-03-29
+
+### Fixed
+- **Scope actually sanitizes**: `scg scope --sanitize` calls `os.Unsetenv()` for blocked secrets. Without flag, audit-only. README updated to match.
+- **Graph sanity check**: `verifyGraphState()` runs after `populateGraph()` — checks pipeline and tool node counts match expectations. Fails with clear error if graph is incomplete.
+- **Lockfile duplicate entries**: Steps with same name across different jobs (e.g., `test:checkout` and `security:checkout`) no longer produce duplicate tool entries. Fixed by keying on `job:step` instead of `step` alone. Found by dogfooding.
+- **Profile coverage warning**: `scg scope` warns when a tool has no DSM profile loaded, with profile count for debugging.
+
+### Added
+- `.github/workflows/ci.yml` — SCG's own CI workflow for dogfooding
+- `--sanitize` flag on `scg scope` (default: audit-only)
+- Dogfooded `scg init` + `scg check` + `scg audit` on SCG's own repo — all pass
+
 ## [0.1.12] - 2026-03-29
 
 ### Fixed

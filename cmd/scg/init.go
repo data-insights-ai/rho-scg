@@ -72,7 +72,12 @@ func doInit(ctx context.Context, logger *slog.Logger, workflowDir, lockfilePath 
 		return fmt.Errorf("populate graph: %w", err)
 	}
 
-	// 8. Create property indexes (labels now registered).
+	// 8. Verify graph state — catch incomplete population.
+	if err := verifyGraphState(sg, len(workflows), len(resolved)); err != nil {
+		return fmt.Errorf("graph sanity check failed: %w", err)
+	}
+
+	// 9. Create property indexes (labels now registered).
 	sg.EnsureIndexes()
 
 	// 9. Build lockfile from parsed + resolved data.
@@ -427,20 +432,24 @@ func buildLockfile(workflows []*parser.WorkflowFile, resolved map[string]*resolv
 			Type: wf.Type,
 		}
 
-		// Index secrets by step.
+		// Index secrets by job:step key (step names can repeat across jobs).
+		stepKey := func(job, step string) string { return job + ":" + step }
+
 		secretsByStep := make(map[string][]manifest.SecretEntry)
 		for _, s := range wf.Secrets {
-			secretsByStep[s.StepName] = append(secretsByStep[s.StepName], manifest.SecretEntry{
+			key := stepKey(s.JobName, s.StepName)
+			secretsByStep[key] = append(secretsByStep[key], manifest.SecretEntry{
 				Name:   s.Name,
 				Source: s.Source,
 			})
 		}
 
-		// Index tools by step.
+		// Index tools by job:step key.
 		toolsByStep := make(map[string][]manifest.ToolEntry)
 		for _, t := range wf.Tools {
 			if res, ok := resolved[t.Reference]; ok {
-				toolsByStep[t.StepName] = append(toolsByStep[t.StepName], manifest.ToolEntry{
+				key := stepKey(t.JobName, t.StepName)
+				toolsByStep[key] = append(toolsByStep[key], manifest.ToolEntry{
 					Ecosystem: t.Ecosystem,
 					Reference: t.Reference,
 					Hash:      res.Hash,
@@ -451,12 +460,13 @@ func buildLockfile(workflows []*parser.WorkflowFile, resolved map[string]*resolv
 		}
 
 		for _, step := range wf.Steps {
+			key := stepKey(step.Job, step.Name)
 			se := manifest.StepEntry{
 				Name:    step.Name,
 				Job:     step.Job,
 				Order:   step.Order,
-				Tools:   toolsByStep[step.Name],
-				Secrets: secretsByStep[step.Name],
+				Tools:   toolsByStep[key],
+				Secrets: secretsByStep[key],
 			}
 			pe.Steps = append(pe.Steps, se)
 		}
@@ -495,4 +505,39 @@ func minHashLen(l int) int {
 		return l
 	}
 	return 16
+}
+
+// verifyGraphState checks that the graph was populated correctly.
+// This catches silent failures in Bootstrap or populateGraph.
+func verifyGraphState(sg *scggraph.SCGGraph, expectedPipelines, expectedTools int) error {
+	ctx := context.Background()
+
+	// Check Pipeline nodes.
+	result, err := sg.Engine.Execute(ctx, "MATCH (p:Pipeline) RETURN COUNT(p) AS cnt", nil)
+	if err != nil {
+		return fmt.Errorf("query pipeline count: %w", err)
+	}
+	if len(result.Rows) == 0 {
+		return fmt.Errorf("pipeline count query returned no rows")
+	}
+	pipelineCount, _ := result.Rows[0]["cnt"].(int64)
+	if int(pipelineCount) != expectedPipelines {
+		return fmt.Errorf("expected %d pipeline(s) in graph, found %d", expectedPipelines, pipelineCount)
+	}
+
+	// Check Tool nodes (init-created, not bootstrap).
+	// We expect at least the number of unique resolved tools.
+	result, err = sg.Engine.Execute(ctx, "MATCH (t:Tool)-[:RESOLVES_TO]->(:Digest) RETURN COUNT(DISTINCT t) AS cnt", nil)
+	if err != nil {
+		return fmt.Errorf("query tool count: %w", err)
+	}
+	if len(result.Rows) == 0 {
+		return fmt.Errorf("tool count query returned no rows")
+	}
+	toolCount, _ := result.Rows[0]["cnt"].(int64)
+	if int(toolCount) < expectedTools {
+		return fmt.Errorf("expected at least %d tool(s) with digests in graph, found %d", expectedTools, toolCount)
+	}
+
+	return nil
 }
