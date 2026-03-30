@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.26] - 2026-03-30
+
+### Security fixes
+- **Partial verification fails (exit 1)**: if ANY tool cannot be verified (rate limit, platform down, not found), `scg check` now exits 1. Verification is all-or-nothing. Previously partial verification (95 of 100 tools) exited 0 — a security gap.
+
+### Architecture cleanup
+- **Removed local graph from init**: `scg init` no longer creates a TKG graph, bootstraps DSM, or populates nodes. Parse → resolve via platform → lockfile → sign → write. 508 → 240 lines.
+- **Removed local graph from audit**: `scg audit` now uses platform `/v1/profile` for scoping (same as `scg scope`). No local graph, no DSM bootstrap, no Cypher queries. Consistent with the platform-only architecture.
+- **All commands use platform only**: init, check, update, scope, audit — none create local graphs or call registries directly.
+
 ## [0.1.24] - 2026-03-30
 
 ### Changed

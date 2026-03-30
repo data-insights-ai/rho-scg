@@ -13,81 +13,36 @@ import (
 	"strings"
 	"time"
 
-	"gitlab2024.bds421-cloud.com/bds421/rho/supply-chain-guardian/dsm"
-	scggraph "gitlab2024.bds421-cloud.com/bds421/rho/supply-chain-guardian/graph"
 	"gitlab2024.bds421-cloud.com/bds421/rho/supply-chain-guardian/manifest"
 	"gitlab2024.bds421-cloud.com/bds421/rho/supply-chain-guardian/parser"
 	"gitlab2024.bds421-cloud.com/bds421/rho/supply-chain-guardian/resolver"
-	tkgraph "gitlab2024.bds421-cloud.com/bds421/rho/tkg/v3/pkg/graph"
-	"gitlab2024.bds421-cloud.com/bds421/rho/tkg/v3/pkg/types"
 )
 
-// doInit is the core orchestration for scg init.
+// doInit scans workflows, resolves via the platform, builds and signs a lockfile.
+// No local graph, no DSM bootstrap — the platform handles everything.
 func doInit(ctx context.Context, logger *slog.Logger, workflowDir, lockfilePath string, res resolver.Resolver) error {
-	// 1. Discover workflow files.
 	paths, err := discoverWorkflows(workflowDir)
 	if err != nil {
 		return err
 	}
 	logger.Info("discovered workflows", "count", len(paths))
 
-	// 2. Parse all workflows.
 	p := parser.NewWorkflowParser()
 	workflows, err := parseWorkflows(p, paths)
 	if err != nil {
 		return err
 	}
 
-	// 3. Collect unique tool references.
 	uniqueTools := collectUniqueTools(workflows)
 	logger.Info("found dependencies", "tools", len(uniqueTools))
 
-	// 4. Resolve all tool references.
 	resolved, err := resolveTools(ctx, logger, uniqueTools, res)
 	if err != nil {
 		return err
 	}
 
-	// 5. Create graph and bootstrap DSM profiles.
-	sg, err := scggraph.New(scggraph.Config{})
-	if err != nil {
-		return fmt.Errorf("create graph: %w", err)
-	}
-	defer sg.Close()
-
-	profileCount, err := dsm.Bootstrap(ctx, sg.G)
-	if err != nil {
-		return fmt.Errorf("bootstrap profiles: %w", err)
-	}
-	logger.Info("bootstrapped DSM profiles", "count", profileCount)
-
-	// 6. Build profile map from committed DSM data.
-	profileMap, err := buildProfileMap(sg.G)
-	if err != nil {
-		return fmt.Errorf("build profile map: %w", err)
-	}
-
-	// 7. Populate graph with pipeline data.
-	if err := populateGraph(ctx, sg.G, workflows, resolved, profileMap); err != nil {
-		return fmt.Errorf("populate graph: %w", err)
-	}
-
-	// 8. Verify graph state — catch incomplete population.
-	if err := verifyGraphState(sg, len(workflows), len(resolved)); err != nil {
-		return fmt.Errorf("graph sanity check failed: %w", err)
-	}
-
-	// 9. Create property indexes (labels now registered).
-	sg.EnsureIndexes()
-
-	// 9. Build lockfile from parsed + resolved data.
 	lf := buildLockfile(workflows, resolved)
 
-	// 10. Sign lockfile with ephemeral ed25519.
-	// NOTE: Each init generates a new keypair. The public key is embedded in the
-	// lockfile for verification. This proves the lockfile wasn't tampered with
-	// after signing, but does NOT prove WHO signed it. Identity-bound signing
-	// (OIDC + JWKS verification) is a platform-tier feature.
 	_, privKey, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
 		return fmt.Errorf("generate signing key: %w", err)
@@ -97,14 +52,11 @@ func doInit(ctx context.Context, logger *slog.Logger, workflowDir, lockfilePath 
 		return fmt.Errorf("sign lockfile: %w", err)
 	}
 
-	// 11. Write lockfile.
 	if err := manifest.WriteLockfile(lockfilePath, lf); err != nil {
 		return err
 	}
 
-	// 12. Print summary.
 	printInitSummary(os.Stdout, workflows, resolved, lockfilePath)
-
 	return nil
 }
 
@@ -141,7 +93,7 @@ func discoverWorkflows(dir string) ([]string, error) {
 	return paths, nil
 }
 
-// parseWorkflows parses all workflow files and returns the results.
+// parseWorkflows parses all workflow files.
 func parseWorkflows(p parser.Parser, paths []string) ([]*parser.WorkflowFile, error) {
 	var workflows []*parser.WorkflowFile
 	for _, path := range paths {
@@ -172,11 +124,10 @@ func collectUniqueTools(workflows []*parser.WorkflowFile) map[string]*parser.Too
 	return tools
 }
 
-// resolveTools resolves each unique tool reference to an immutable digest.
+// resolveTools resolves each unique tool reference via the platform.
 func resolveTools(ctx context.Context, logger *slog.Logger, tools map[string]*parser.ToolRef, res resolver.Resolver) (map[string]*resolver.Resolution, error) {
 	resolved := make(map[string]*resolver.Resolution, len(tools))
 
-	// Sort keys for deterministic resolution order.
 	refs := make([]string, 0, len(tools))
 	for ref := range tools {
 		refs = append(refs, ref)
@@ -196,229 +147,6 @@ func resolveTools(ctx context.Context, logger *slog.Logger, tools map[string]*pa
 	return resolved, nil
 }
 
-// buildProfileMap queries the graph after DSM bootstrap to find
-// all Tool → Profile links. Returns a map from base reference
-// (e.g., "aquasecurity/trivy-action") to the Profile node.
-func buildProfileMap(g *tkgraph.Graph) (map[string]*types.Node, error) {
-	profiles := make(map[string]*types.Node)
-
-	tools, err := g.NodesByLabel("Tool", tkgraph.QueryOpts{})
-	if err != nil {
-		return nil, err
-	}
-
-	for _, tool := range tools {
-		refVal, ok := tool.GetProperty("reference")
-		if !ok {
-			continue
-		}
-		ref, ok := refVal.(string)
-		if !ok {
-			continue
-		}
-
-		rels, err := g.OutgoingRelationships(tool.InternalID().SnowflakeID(), scggraph.RelHasProfile)
-		if err != nil {
-			return nil, err
-		}
-		if len(rels) == 0 {
-			continue
-		}
-
-		profileNode, err := g.GetNode(rels[0].EndNodeID().SnowflakeID())
-		if err != nil {
-			return nil, err
-		}
-		profiles[ref] = profileNode
-	}
-
-	return profiles, nil
-}
-
-// populateGraph creates all pipeline nodes and relationships in a single transaction.
-func populateGraph(
-	ctx context.Context,
-	g *tkgraph.Graph,
-	workflows []*parser.WorkflowFile,
-	resolved map[string]*resolver.Resolution,
-	profileMap map[string]*types.Node,
-) error {
-	tx := g.BeginTx()
-	defer tx.Rollback()
-
-	// Deduplication maps.
-	toolNodes := make(map[string]*types.Node)
-	digestNodes := make(map[string]*types.Node)
-	secretNodes := make(map[string]*types.Node)
-
-	for _, wf := range workflows {
-		// Create Pipeline node.
-		pipelineNode, err := tx.AddNode(
-			[]string{scggraph.LabelPipeline},
-			map[string]any{"path": wf.Path, "type": wf.Type},
-		)
-		if err != nil {
-			return fmt.Errorf("create pipeline %s: %w", wf.Path, err)
-		}
-
-		// Index tools by step for USES linking.
-		toolsByStep := make(map[string][]string) // stepName → []reference
-		for _, t := range wf.Tools {
-			toolsByStep[t.StepName] = append(toolsByStep[t.StepName], t.Reference)
-		}
-
-		// Index secrets by step for HAS_ACCESS linking.
-		secretsByStep := make(map[string][]string) // stepName → []secretName
-		for _, s := range wf.Secrets {
-			secretsByStep[s.StepName] = append(secretsByStep[s.StepName], s.Name)
-		}
-
-		for _, step := range wf.Steps {
-			// Create Step node.
-			stepNode, err := tx.AddNode(
-				[]string{scggraph.LabelStep},
-				map[string]any{
-					"name":     step.Name,
-					"workflow": wf.Path,
-					"job":      step.Job,
-				},
-			)
-			if err != nil {
-				return fmt.Errorf("create step %s: %w", step.Name, err)
-			}
-
-			// Pipeline → Step.
-			if _, err := tx.AddRelationship(scggraph.RelContainsStep, pipelineNode, stepNode, map[string]any{
-				"order": step.Order,
-			}); err != nil {
-				return fmt.Errorf("link pipeline→step %s: %w", step.Name, err)
-			}
-
-			// Create/link tools for this step.
-			for _, ref := range toolsByStep[step.Name] {
-				toolNode, err := getOrCreateTool(tx, toolNodes, wf, ref)
-				if err != nil {
-					return err
-				}
-
-				// Create/link digest.
-				if res, ok := resolved[ref]; ok {
-					digestNode, err := getOrCreateDigest(tx, digestNodes, res)
-					if err != nil {
-						return err
-					}
-
-					// RESOLVES_TO (temporal) — only if this pair hasn't been linked yet.
-					pairKey := ref + "|" + res.Hash
-					if _, exists := toolNodes["resolved:"+pairKey]; !exists {
-						if _, err := tx.AddRelationship(scggraph.RelResolvesTo, toolNode, digestNode, map[string]any{
-							"tkg_valid_from": res.ResolvedAt.UnixMilli(),
-						}); err != nil {
-							return fmt.Errorf("link tool→digest %s: %w", ref, err)
-						}
-						toolNodes["resolved:"+pairKey] = toolNode // track to avoid dups
-					}
-				}
-
-				// Step → Tool (USES).
-				if _, err := tx.AddRelationship(scggraph.RelUses, stepNode, toolNode, nil); err != nil {
-					return fmt.Errorf("link step→tool %s: %w", ref, err)
-				}
-
-				// Link to DSM profile if available.
-				baseRef := extractBaseRef(ref)
-				profileKey := "profile:" + ref
-				if _, linked := toolNodes[profileKey]; !linked {
-					if profileNode, ok := profileMap[baseRef]; ok {
-						if _, err := tx.AddRelationship(scggraph.RelHasProfile, toolNode, profileNode, nil); err != nil {
-							return fmt.Errorf("link tool→profile %s: %w", ref, err)
-						}
-						toolNodes[profileKey] = toolNode // track to avoid dups
-					}
-				}
-			}
-
-			// Create/link secrets for this step.
-			for _, secretName := range secretsByStep[step.Name] {
-				secretNode, err := getOrCreateSecret(tx, secretNodes, secretName)
-				if err != nil {
-					return err
-				}
-
-				// Step → Secret (HAS_ACCESS).
-				if _, err := tx.AddRelationship(scggraph.RelHasAccess, stepNode, secretNode, map[string]any{
-					"source": "secrets",
-				}); err != nil {
-					return fmt.Errorf("link step→secret %s: %w", secretName, err)
-				}
-			}
-		}
-	}
-
-	return tx.Commit()
-}
-
-func getOrCreateTool(tx *tkgraph.GraphTx, toolNodes map[string]*types.Node, wf *parser.WorkflowFile, ref string) (*types.Node, error) {
-	if n, ok := toolNodes[ref]; ok {
-		return n, nil
-	}
-
-	// Find the ToolRef for metadata.
-	var toolRef *parser.ToolRef
-	for i := range wf.Tools {
-		if wf.Tools[i].Reference == ref {
-			toolRef = &wf.Tools[i]
-			break
-		}
-	}
-
-	props := map[string]any{"reference": ref}
-	if toolRef != nil {
-		props["ecosystem"] = toolRef.Ecosystem
-		props["owner"] = toolRef.Owner
-		props["name"] = toolRef.Name
-	}
-
-	n, err := tx.AddNode([]string{scggraph.LabelTool}, props)
-	if err != nil {
-		return nil, fmt.Errorf("create tool %s: %w", ref, err)
-	}
-	toolNodes[ref] = n
-	return n, nil
-}
-
-func getOrCreateDigest(tx *tkgraph.GraphTx, digestNodes map[string]*types.Node, res *resolver.Resolution) (*types.Node, error) {
-	if n, ok := digestNodes[res.Hash]; ok {
-		return n, nil
-	}
-	n, err := tx.AddNode([]string{scggraph.LabelDigest}, map[string]any{
-		"hash":      res.Hash,
-		"algorithm": res.Algorithm,
-		"source":    res.Source,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("create digest %s: %w", res.Hash[:minHashLen(len(res.Hash))], err)
-	}
-	digestNodes[res.Hash] = n
-	return n, nil
-}
-
-func getOrCreateSecret(tx *tkgraph.GraphTx, secretNodes map[string]*types.Node, name string) (*types.Node, error) {
-	if n, ok := secretNodes[name]; ok {
-		return n, nil
-	}
-	n, err := tx.AddNode([]string{scggraph.LabelSecret}, map[string]any{
-		"name":     name,
-		"source":   "workflow",
-		"category": "ci",
-	})
-	if err != nil {
-		return nil, fmt.Errorf("create secret %s: %w", name, err)
-	}
-	secretNodes[name] = n
-	return n, nil
-}
-
 // buildLockfile constructs a Lockfile from parsed workflows and resolved digests.
 func buildLockfile(workflows []*parser.WorkflowFile, resolved map[string]*resolver.Resolution) *manifest.Lockfile {
 	lf := &manifest.Lockfile{
@@ -432,7 +160,6 @@ func buildLockfile(workflows []*parser.WorkflowFile, resolved map[string]*resolv
 			Type: wf.Type,
 		}
 
-		// Index secrets by job:step key (step names can repeat across jobs).
 		stepKey := func(job, step string) string { return job + ":" + step }
 
 		secretsByStep := make(map[string][]manifest.SecretEntry)
@@ -444,7 +171,6 @@ func buildLockfile(workflows []*parser.WorkflowFile, resolved map[string]*resolv
 			})
 		}
 
-		// Index tools by job:step key.
 		toolsByStep := make(map[string][]manifest.ToolEntry)
 		for _, t := range wf.Tools {
 			if res, ok := resolved[t.Reference]; ok {
@@ -505,39 +231,4 @@ func minHashLen(l int) int {
 		return l
 	}
 	return 16
-}
-
-// verifyGraphState checks that the graph was populated correctly.
-// This catches silent failures in Bootstrap or populateGraph.
-func verifyGraphState(sg *scggraph.SCGGraph, expectedPipelines, expectedTools int) error {
-	ctx := context.Background()
-
-	// Check Pipeline nodes.
-	result, err := sg.Engine.Execute(ctx, "MATCH (p:Pipeline) RETURN COUNT(p) AS cnt", nil)
-	if err != nil {
-		return fmt.Errorf("query pipeline count: %w", err)
-	}
-	if len(result.Rows) == 0 {
-		return fmt.Errorf("pipeline count query returned no rows")
-	}
-	pipelineCount, _ := result.Rows[0]["cnt"].(int64)
-	if int(pipelineCount) != expectedPipelines {
-		return fmt.Errorf("expected %d pipeline(s) in graph, found %d", expectedPipelines, pipelineCount)
-	}
-
-	// Check Tool nodes (init-created, not bootstrap).
-	// We expect at least the number of unique resolved tools.
-	result, err = sg.Engine.Execute(ctx, "MATCH (t:Tool)-[:RESOLVES_TO]->(:Digest) RETURN COUNT(DISTINCT t) AS cnt", nil)
-	if err != nil {
-		return fmt.Errorf("query tool count: %w", err)
-	}
-	if len(result.Rows) == 0 {
-		return fmt.Errorf("tool count query returned no rows")
-	}
-	toolCount, _ := result.Rows[0]["cnt"].(int64)
-	if int(toolCount) < expectedTools {
-		return fmt.Errorf("expected at least %d tool(s) with digests in graph, found %d", expectedTools, toolCount)
-	}
-
-	return nil
 }

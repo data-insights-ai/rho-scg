@@ -5,18 +5,26 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"regexp"
 
-	"gitlab2024.bds421-cloud.com/bds421/rho/supply-chain-guardian/dsm"
-	scggraph "gitlab2024.bds421-cloud.com/bds421/rho/supply-chain-guardian/graph"
+	"gitlab2024.bds421-cloud.com/bds421/rho/supply-chain-guardian/internal/config"
 	"gitlab2024.bds421-cloud.com/bds421/rho/supply-chain-guardian/manifest"
 	"gitlab2024.bds421-cloud.com/bds421/rho/supply-chain-guardian/parser"
+	"gitlab2024.bds421-cloud.com/bds421/rho/supply-chain-guardian/platform"
 	"gitlab2024.bds421-cloud.com/bds421/rho/supply-chain-guardian/resolver"
 	"gitlab2024.bds421-cloud.com/bds421/rho/supply-chain-guardian/scoper"
 )
 
+type auditViolation struct {
+	StepName string
+	Secret   string
+	Pattern  string
+	Reason   string
+}
+
 // doAudit runs a full security audit: drift detection + secret exposure analysis.
+// Both layers go through the platform — no local graph.
 func doAudit(ctx context.Context, logger *slog.Logger, workflowDir, lockfilePath string, res resolver.Resolver) error {
-	// 1. Parse and resolve (same as init).
 	paths, err := discoverWorkflows(workflowDir)
 	if err != nil {
 		return err
@@ -34,12 +42,12 @@ func doAudit(ctx context.Context, logger *slog.Logger, workflowDir, lockfilePath
 		return err
 	}
 
-	// 2. Check drift against existing lockfile (if present).
+	// Layer 1: Drift check against existing lockfile.
 	var driftResults []manifest.DriftResult
 	if _, statErr := os.Stat(lockfilePath); statErr == nil {
 		lf, err := manifest.ReadLockfile(lockfilePath)
 		if err != nil {
-			return fmt.Errorf("read lockfile for drift check: %w", err)
+			return fmt.Errorf("read lockfile: %w", err)
 		}
 		allResolvers := buildResolvers()
 		var driftWarnings []string
@@ -52,44 +60,52 @@ func doAudit(ctx context.Context, logger *slog.Logger, workflowDir, lockfilePath
 		}
 	}
 
-	// 3. Create graph, bootstrap, populate for scope analysis.
-	sg, err := scggraph.New(scggraph.Config{})
-	if err != nil {
-		return fmt.Errorf("create graph: %w", err)
-	}
-	defer sg.Close()
+	// Layer 2: Secret scoping via platform profiles.
+	cfg := config.Load()
+	client := platform.NewClient(cfg.PlatformBaseURL, cfg.PlatformAPIKey)
+	envSecrets := scoper.ScanEnv()
 
-	if _, err := dsm.Bootstrap(ctx, sg.G); err != nil {
-		return fmt.Errorf("bootstrap: %w", err)
-	}
+	var violations []auditViolation
 
-	profileMap, err := buildProfileMap(sg.G)
-	if err != nil {
-		return fmt.Errorf("build profile map: %w", err)
-	}
-
-	if err := populateGraph(ctx, sg.G, workflows, resolved, profileMap); err != nil {
-		return fmt.Errorf("populate graph: %w", err)
-	}
-
-	// 4. Scope each step that has a tool.
-	var scopeResults []*scoper.ScopeResult
+	seen := make(map[string]bool)
 	for _, wf := range workflows {
 		for _, tool := range wf.Tools {
-			result, err := scoper.Scope(ctx, sg.Engine, tool.StepName)
-			if err != nil {
-				return fmt.Errorf("scope step %q: %w", tool.StepName, err)
+			if seen[tool.StepName] {
+				continue
 			}
-			if len(result.Violations) > 0 {
-				scopeResults = append(scopeResults, result)
+			seen[tool.StepName] = true
+
+			baseRef := extractBaseRef(tool.Reference)
+			profile, err := client.FetchProfile(ctx, tool.Ecosystem, baseRef)
+			if err != nil {
+				logger.Info("no profile for tool", "ref", baseRef, "err", err)
+				continue
+			}
+
+			for _, secret := range envSecrets {
+				for _, fp := range profile.ForbiddenSecrets {
+					re, err := regexp.Compile(fp.Pattern)
+					if err != nil {
+						continue
+					}
+					if re.MatchString(secret) {
+						violations = append(violations, auditViolation{
+							StepName: tool.StepName,
+							Secret:   secret,
+							Pattern:  fp.Pattern,
+							Reason:   fp.Reason,
+						})
+						break
+					}
+				}
 			}
 		}
 	}
 
-	// 5. Print audit report.
-	printAuditReport(os.Stdout, workflows, resolved, driftResults, scopeResults)
+	// Print report.
+	printAuditReport(os.Stdout, workflows, resolved, driftResults, violations)
 
-	issues := len(driftResults) + len(scopeResults)
+	issues := len(driftResults) + len(violations)
 	if issues > 0 {
 		return fmt.Errorf("audit found %d issue(s)", issues)
 	}
@@ -102,7 +118,7 @@ func printAuditReport(
 	workflows []*parser.WorkflowFile,
 	resolved map[string]*resolver.Resolution,
 	driftResults []manifest.DriftResult,
-	scopeResults []*scoper.ScopeResult,
+	violations []auditViolation,
 ) {
 	fmt.Fprintf(w, "\n  %s\n\n", bold("SCG Audit Report"))
 
@@ -114,7 +130,6 @@ func printAuditReport(
 	fmt.Fprintf(w, "  Steps:     %d\n", totalSteps)
 	fmt.Fprintf(w, "  Tools:     %d\n\n", len(resolved))
 
-	// Drift section.
 	fmt.Fprintf(w, "  %s\n", bold("Dependency Integrity"))
 	if len(driftResults) == 0 {
 		printSuccess(w, "No drift detected.")
@@ -127,21 +142,17 @@ func printAuditReport(
 	}
 	fmt.Fprintln(w)
 
-	// Secret exposure section.
 	fmt.Fprintf(w, "  %s\n", bold("Secret Exposure"))
-	if len(scopeResults) == 0 {
+	if len(violations) == 0 {
 		printSuccess(w, "No secret violations found.")
 	} else {
-		for _, sr := range scopeResults {
-			printFailure(w, "Step %q: %d violation(s)", sr.StepName, len(sr.Violations))
-			for _, v := range sr.Violations {
-				fmt.Fprintf(w, "      %s — %s %s\n", bold(v.Secret), v.Reason, dim("("+v.Tool+")"))
-			}
+		for _, v := range violations {
+			printFailure(w, "Step %q: %s — %s", v.StepName, v.Secret, v.Reason)
 		}
 	}
 	fmt.Fprintln(w)
 
-	issues := len(driftResults) + len(scopeResults)
+	issues := len(driftResults) + len(violations)
 	if issues == 0 {
 		fmt.Fprintf(w, "  Result: %s\n\n", green(bold("PASS")))
 	} else {

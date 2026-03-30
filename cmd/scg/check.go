@@ -69,10 +69,13 @@ func doCheck(ctx context.Context, logger *slog.Logger, lockfilePath string, noVe
 	if len(results) == 0 {
 		fmt.Fprintln(os.Stdout)
 		if len(warnings) > 0 {
-			printWarning(os.Stdout, "%d of %d tools verified, %d skipped.", verified, totalTools, len(warnings))
-		} else {
-			printSuccess(os.Stdout, "All %d tool entries verified, no drift detected.", totalTools)
+			// Partial verification is a failure for a security tool.
+			// All tools must be verified — no exceptions.
+			printFailure(os.Stdout, "%d of %d tools verified, %d could not be checked.", verified, totalTools, len(warnings))
+			fmt.Fprintln(os.Stdout)
+			return fmt.Errorf("incomplete verification: %d of %d tools could not be checked", len(warnings), totalTools)
 		}
+		printSuccess(os.Stdout, "All %d tool entries verified, no drift detected.", totalTools)
 		fmt.Fprintln(os.Stdout)
 		return nil
 	}

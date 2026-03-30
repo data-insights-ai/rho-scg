@@ -141,7 +141,7 @@ internal/testutil  TestGraph(t) helper
 - Every public function gets a direct test
 - Coverage gate: 80% per package
 
-## Current State (v0.1.24)
+## Current State (v0.1.26)
 
 - All 5 commands working: `init`, `check`, `update`, `scope`, `audit`
 - Both layers through the platform:
