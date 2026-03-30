@@ -7,21 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.1.22] - 2026-03-29
+## [0.1.24] - 2026-03-30
 
 ### Changed
-- **Quiet by default**: no slog output unless `--verbose` flag is set. Clean output for users.
-- **Proper `--verbose` flag**: registered in every subcommand's flagset, visible in `-h` help.
-- **Clean warning messages**: error chain unwrapped to show root cause only, not nested wrapping.
-- **Honest verification**: `scg check` fails (exit 1) when all tools are skipped (rate limited), instead of falsely reporting "all verified."
-- **Partial verification**: when some tools verify and some skip, reports "5 of 7 verified, 2 skipped."
-- **No duplicate error output**: slog ERROR line suppressed in non-verbose mode (commands print their own errors).
+- **Both layers through the platform**: `scg check` (hashes) AND `scg scope` (profiles) now query the platform exclusively. No local graph, no DSM bootstrap, no Cypher queries in the CLI.
+- **scg scope rewritten**: single platform API call to `/v1/profile` + local env scan + regex match. Removed 150+ lines of graph setup code.
+- **No local resolvers anywhere**: removed all `NewGitHubResolver`, `NewDockerResolver`, `NewPyPIResolver`, `NewNPMResolver` from CLI. Removed `GITHUB_TOKEN` from config.
+- **No fallback**: deleted `resolver/fallback.go`. Platform is the only resolver.
+- **Errors always shown**: fixed silent error swallowing in main.go.
+- **ProfileResponse type fixed**: matches actual platform API response (strings not objects, `forbidden_patterns` not `forbidden_secrets`).
 
-### Added
-- Platform-first resolver architecture (Phase 3 in tasks/todo.md)
-- `platform/resolver.go`: FallbackResolver pattern (platform first, local fallback)
-- `platform/client.go`: works without API key (unauthenticated 10/hr tier)
-- Response caching: 5 min TTL for platform API responses
+## [0.1.23] - 2026-03-29
+
+### Changed
+- Quiet by default, `--verbose` for detailed logs
+- Proper `--verbose` flag registered in every subcommand
+- Clean warning messages (root cause only)
+- Honest verification (fails when all tools skipped)
+- Platform-first resolver (CLI queries api.scg.bds421.com by default)
+- No GITHUB_TOKEN needed
 
 ## [0.1.17] - 2026-03-29
 

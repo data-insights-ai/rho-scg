@@ -67,7 +67,7 @@
     <p>Prevent supply chain attacks before they reach your CI/CD pipeline. Every dependency pinned. Every secret scoped. Every drift detected.</p>
     <div class="stats">
       <div class="stat"><div class="num" id="tool-count">32,000+</div><div class="label">tools tracked</div></div>
-      <div class="stat"><div class="num">4</div><div class="label">ecosystems</div></div>
+      <div class="stat"><div class="num" id="profile-count">30</div><div class="label">security profiles</div></div>
       <div class="stat"><div class="num">7</div><div class="label">attacks stopped</div></div>
     </div>
     <pre>curl -sSL https://scg.bds421.com/install.sh | sh</pre>
@@ -183,6 +183,7 @@ fetch('https://api.scg.bds421.com/v1/status')
   .then(r => r.json())
   .then(d => {
     if (d.tools) document.getElementById('tool-count').textContent = d.tools.toLocaleString() + '+';
+    if (d.profiles) document.getElementById('profile-count').textContent = d.profiles.toLocaleString();
   })
   .catch(() => {});
 </script>

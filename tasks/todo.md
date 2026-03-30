@@ -75,19 +75,22 @@
 - [ ] IMDS blocker for cloud runners
 - [x] 55 tests total, race detector clean
 
-## Phase 3: Platform-First Architecture
+## Phase 3: Platform-Only Architecture — DONE
 
-The CLI should ALWAYS query the platform (api.scg.bds421.com) first.
-Local resolution (GitHub/Docker/PyPI/npm APIs) is fallback only.
-No GITHUB_TOKEN needed for normal use.
+The CLI queries the platform exclusively. No local resolvers. No fallback. No GITHUB_TOKEN.
 
-- [ ] Create `resolver/fallback.go` — try platform, fall back to local
-- [ ] Rewrite `buildResolvers()` in check.go — platform always first
-- [ ] Modify `platform/client.go` — work without API key (unauthenticated 10/hr)
-- [ ] Handle 429 rate limit → fall back to local with warning
-- [ ] Modify config — demote GITHUB_TOKEN to fallback-only
-- [ ] Update `cmd/scg/init.go` — use fallback resolver
-- [ ] Update CLI help: "GITHUB_TOKEN is for offline/fallback use only"
-- [ ] Update README: platform is the default, not an add-on
+- [x] `scg check` → platform `/v1/resolve` for hash verification
+- [x] `scg scope` → platform `/v1/profile` for secret scoping
+- [x] Removed all local resolvers from CLI
+- [x] Removed GITHUB_TOKEN from config
+- [x] Deleted `resolver/fallback.go`
+- [x] Platform client works without API key (20/hr anonymous)
+- [x] Response caching (5 min TTL)
+
+## Phase 4: Expand Profile Database
+
+- [ ] Expand from 30 to 200+ security profiles on the platform
+- [ ] Decouple profiles from Go code (YAML/JSON data file)
+- [ ] Tests for profile coverage
 - [ ] Tests for fallback behavior
 - [ ] Verify: `scg check` works with NO env vars set (uses platform)

@@ -136,17 +136,18 @@ SCG models dependencies as a temporal knowledge graph:
 - **Nodes:** Tool, Digest, Step, Secret, Pipeline, Profile, SecretPattern
 - **Key relationship:** `RESOLVES_TO` (Tool -> Digest) is temporal — carries ValidFrom/ValidTo timestamps enabling drift detection over time
 
-## Current Status (v0.1.22)
+## Current Status (v0.1.24)
 
 - All 5 commands working: `init`, `check`, `update`, `scope`, `audit`
-- 4 ecosystems: GitHub Actions, Docker, PyPI, npm
-- Platform-first: queries api.scg.bds421.com by default (no token needed)
-- Graceful fallback: platform unavailable → local resolution
-- Quiet by default, `--verbose` for detailed logs
+- Both layers through the platform — no local resolvers, no tokens needed:
+  - `scg check` → `/v1/resolve` (hash verification)
+  - `scg scope` → `/v1/profile` (secret scoping)
+- Platform: 32,000+ tools, 30 security profiles
 - 119 tests + 4 fuzz targets, race clean
 
 ## Limitations
 
 - Go and Helm ecosystems not yet implemented
+- 30 security profiles (expanding)
 - Identity-bound signing (OIDC + JWKS) planned for platform tier
 - Ephemeral ed25519 keys — no chain of trust across lockfile versions

@@ -93,6 +93,12 @@ internal/testutil  TestGraph(t) helper
 
 ## Key Rules
 
+### Versioning — NEVER increase minor or major version
+- Only use patch versions (e.g., v0.1.23 → v0.1.24)
+- NEVER bump minor (v0.1.x → v0.2.x) or major version without explicit user approval
+- The user decides when a minor or major version bump is warranted
+- Ask before tagging if unsure
+
 ### Business Model — THE MOST IMPORTANT RULE
 - The platform (api.scg.bds421.com) is the ONLY resolver. Always. No exceptions.
 - The CLI NEVER calls GitHub, Docker Hub, PyPI, or npm APIs directly.
@@ -135,20 +141,18 @@ internal/testutil  TestGraph(t) helper
 - Every public function gets a direct test
 - Coverage gate: 80% per package
 
-## Current State (v0.1.22)
+## Current State (v0.1.24)
 
 - All 5 commands working: `init`, `check`, `update`, `scope`, `audit`
-- 4 ecosystems: GitHub Actions, Docker, PyPI, npm
-- Platform integration: CLI queries api.scg.bds421.com by default
-  - SCG_API_KEY optional (higher rate limits)
-  - No GITHUB_TOKEN needed for normal use
-  - Graceful fallback: platform down → local resolution
-  - 5 min TTL cache for platform responses
-- Quiet by default, `--verbose` for detailed logs
-- Signatures mandatory, `--sanitize` for scope, `--json` output, colored terminal
+- Both layers through the platform:
+  - `scg check` → platform `/v1/resolve` (hash verification)
+  - `scg scope` → platform `/v1/profile` (secret scoping)
+- No local resolvers. No GITHUB_TOKEN. No fallback.
+- Platform: api.scg.bds421.com (32,000+ tools, 30 profiles)
+- CLI install: scg.bds421.com
+- Quiet by default, `--verbose` for logs
 - 119 tests + 4 fuzz targets, race clean
-- Live: scg.bds421.com (CLI install), api.scg.bds421.com (platform API)
-- Next: complete platform-first resolver (Phase 3 in tasks/todo.md)
+- Next: expand profile database (30 → hundreds)
 
 ## Session Protocol
 

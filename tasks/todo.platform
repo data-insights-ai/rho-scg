@@ -1,119 +1,89 @@
 # SCG Platform — Task List
 
-## CLI Limitations (to be solved by platform)
+## Architecture
 
-These are known limitations of the open-source CLI that the platform resolves:
+The platform IS the product. All resolution and profile queries go through the platform.
+The CLI never calls GitHub, Docker Hub, PyPI, or npm directly.
 
-- **Ephemeral signing keys**: Each `scg init` generates a new ed25519 keypair. No chain of trust across lockfile versions. Platform provides persistent signing with OIDC + JWKS verification.
-- **Graph query sanity**: If DSM Bootstrap partially fails, scope/audit Cypher queries may return empty results without error. Platform validates graph state after population.
-- **30 embedded profiles**: Only covers top GitHub Actions. Platform provides thousands of curated, continuously updated profiles.
-- **Go/Helm ecosystems**: No resolver implemented. Platform adds Go module + Helm chart resolution.
-- **No audit logging**: No tamper-evident record of what was checked, when, by whom. Platform logs all operations.
+```
+scg check → api.scg.bds421.com/v1/resolve  (hash verification)
+scg scope → api.scg.bds421.com/v1/profile  (secret scoping)
+```
 
-## Phase 3: Platform MVP (Weeks 5-6)
+## Platform Infrastructure — DONE
 
-### Infrastructure
-- [ ] Platform daemon binary (cmd/scgd/main.go)
-- [ ] TieredStore configuration for platform scale
-  - Reference shards: Tool, Profile, SecretPattern (always hot)
-  - Event shards: Digest, Resolution, Scan, Violation (time-windowed)
-- [ ] Database schema for user accounts + subscriptions
-- [ ] API key generation and validation
-- [ ] Rate limiting per API key tier
+- [x] Platform daemon (scgd) with rho-kit/app, TKG TieredStore
+- [x] Marketplace crawler: discovers GitHub Actions, resolves all tags → commit SHAs
+- [x] 32,000+ tools indexed from 1,100+ repos
+- [x] REST API: /v1/status, /v1/resolve, /v1/profile, /v1/history, /v1/check, /v1/lockfile
+- [x] Unauthenticated access (20/hr per IP), authenticated tiers
+- [x] Rate limit headers on all responses
+- [x] API key auth + per-org rate limiting
+- [x] Cron: daily crawl, hourly re-resolve, 15min critical re-resolve
+- [x] Drift detection + webhook alerts
+- [x] Deployed at api.scg.bds421.com
 
-### Continuous Resolution Engine
-- [ ] Cron job: resolve all known tools on schedule (every 15 min for critical, hourly for others)
-- [ ] Drift event detection: when resolution changes, create Violation node
-- [ ] Alert pipeline: webhook, email, Slack notifications on drift
-- [ ] Resolution queue: prioritize tools with recent changes
-- [ ] GitHub webhook listener: detect tag force-pushes in real-time
+## CLI Integration — DONE
 
-### REST API
-- [ ] `GET /v1/resolve/{ecosystem}/{reference}` — pre-computed resolution
-- [ ] `GET /v1/profile/{ecosystem}/{reference}` — security profile
-- [ ] `GET /v1/history/{ecosystem}/{reference}` — temporal resolution history
-- [ ] `POST /v1/check` — batch validation (lockfile upload)
-- [ ] `GET /v1/audit/{repo}` — full audit for a repository
-- [ ] `GET /v1/status` — platform health + coverage stats
-- [ ] API versioning and deprecation policy
+- [x] `scg check` queries platform for hashes (no GITHUB_TOKEN needed)
+- [x] `scg scope` queries platform for profiles (no local graph)
+- [x] `scg init` resolves via platform
+- [x] No local resolvers in CLI. No fallback.
+- [x] Response caching (5 min TTL)
+- [x] Landing page at scg.bds421.com with BDS421 branding
 
-### CLI Integration
-- [ ] `resolver/platform.go` — implement platform resolver (SCG_API_KEY)
-- [ ] `dsm/client.go` — implement platform profile fetcher
-- [ ] Graceful fallback: if platform unavailable, fall back to local resolution
-- [ ] Cache platform responses locally (5-minute TTL)
+## Expand Profile Database — NEXT
 
-### Subscription Management
-- [ ] Stripe integration for billing
-- [ ] Free tier: unlimited local scans, no platform access
-- [ ] Pro tier ($15-25/mo per org): platform API, pre-resolved hashes, full profiles, alerts, 90-day history
-- [ ] Enterprise tier (custom): self-hosted, custom policies, SSO/RBAC, SLA
+- [ ] Expand from 30 to 200+ security profiles
+- [ ] Decouple profiles from Go code (YAML/JSON data file on platform)
+- [ ] Profiles for all crawled action orgs (actions, docker, aws-actions, google, azure, etc.)
+- [ ] Community profile submission via API
+- [ ] Profile quality scoring
 
-## Phase 4: DSM Registry (Month 2+)
+## Expand Crawler Coverage
 
-### Community Profiles
-- [ ] `POST /v1/profiles` — community profile submission
-- [ ] Review workflow: submit → review → approve → publish
-- [ ] Profile versioning with temporal validity
-- [ ] GPG signing of approved profiles
-- [ ] Automated profile generation via static analysis
-- [ ] Profile quality scoring (coverage, accuracy, freshness)
+- [ ] Fix user account discovery (peter-evans, peaceiris, etc. — use /users/ API not /orgs/)
+- [ ] Lower star threshold to 10 (phased: 100 → 50 → 10)
+- [ ] ETag caching for re-crawls (304 = zero rate limit cost)
+- [ ] Docker Hub image crawler (top official images by pull count)
 
-### Web Dashboard
-- [ ] Repository overview: all dependencies, risk tiers, drift status
+## Subscription & Billing
+
+- [ ] Free account signup (100/hr)
+- [ ] Stripe integration for Pro tier (5,000/hr)
+- [ ] Enterprise tier (50,000/hr, custom)
+- [ ] API key management UI
+
+## Web Dashboard
+
+- [ ] Repository overview: dependencies, risk tiers, drift status
 - [ ] Temporal timeline: resolution history visualization
 - [ ] Secret exposure map: which steps see which secrets
-- [ ] Blast radius viewer: DEPTH expansion from compromised tool
 - [ ] Alert management: configure notifications, review history
-- [ ] Organization settings: custom policies, team access
 
-### Advanced Features
+## Advanced Features
+
 - [ ] Tyla integration: declarative security policies as rules
-  ```prolog
-  @source(tool, "graph/nodes", "Tool", ["reference", "ecosystem"]).
-  @source(resolves, "graph/edges", "RESOLVES_TO", []).
-  at_risk(T) :- resolves(T, D1), resolves(T, D2), D1 \= D2.
-  at_risk(T) :- depends(T, Dep), at_risk(Dep).
-  ```
-- [ ] Custom Tyla policy upload per organization
-- [ ] Transitive dependency analysis via variable-length paths
-- [ ] CVE correlation: match known vulnerabilities against dependency graph
+- [ ] CVE correlation: match vulnerabilities against dependency graph
 - [ ] GitHub Advisory Database integration
-- [ ] Sigstore/Rekor transparency log integration (keyless signing)
+- [ ] OIDC + JWKS identity-bound signing (platform-tier)
+- [ ] SBOM generation from temporal graph
 
-### Scale
-- [ ] Multi-region deployment
-- [ ] CDN for profile distribution
-- [ ] Background workers for resolution (separate from API)
-- [ ] Monitoring: Prometheus metrics, Grafana dashboards
-- [ ] SLA targets: 99.9% API uptime, <200ms p95 latency
+## CI/CD Pipeline
 
-## Phase 5: Ecosystem Growth (Month 3+)
+- [ ] .gitlab-ci.yml: build → test → Docker push → auto-deploy
+- [ ] Automated CLI binary release on tag push
+- [ ] No more manual scp uploads
 
-### Additional CI/CD Platforms
-- [ ] GitLab CI template + resolver
-- [ ] Azure DevOps extension
-- [ ] CircleCI orb
-- [ ] Jenkins plugin
-- [ ] Bitbucket Pipelines
+## Additional Ecosystems
 
-### Additional Ecosystems
-- [ ] Helm chart resolver
-- [ ] Terraform module resolver
-- [ ] Go module resolver (delegate to go.sum)
-- [ ] Rust crate resolver
-- [ ] Maven artifact resolver
+- [ ] Docker Hub image resolution
+- [ ] Go module resolution
+- [ ] Helm chart resolution
 
-### GitHub Action Wrapper
-- [ ] `action.yml` for one-line CI integration
-- [ ] Pre-built binaries for linux-amd64, linux-arm64, darwin-amd64, darwin-arm64
-- [ ] GitHub Marketplace listing
-- [ ] Automated release pipeline
+## Go-to-Market
 
-### Go-to-Market
-- [ ] Landing page (scg.bds421.com)
+- [x] Landing page (scg.bds421.com) with BDS421 branding
 - [ ] Documentation site (docs.scg.bds421.com)
-- [ ] Blog: "How SCG Would Have Stopped TeamPCP" launch post
-- [ ] Conference talks: supply chain security
-- [ ] Open-source community building
-- [ ] Security researcher outreach
+- [ ] Blog: "How SCG Would Have Stopped TeamPCP"
+- [ ] GitHub Action wrapper (action.yml) on GitHub Marketplace
