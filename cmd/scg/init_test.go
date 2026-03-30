@@ -245,8 +245,8 @@ func TestDoInit_EndToEnd(t *testing.T) {
 	if lf.Signature == nil {
 		t.Error("expected lockfile to be signed")
 	}
-	if lf.Signature != nil && lf.Signature.Algorithm != "ed25519" {
-		t.Errorf("expected ed25519 signature, got %s", lf.Signature.Algorithm)
+	if lf.Signature != nil && lf.Signature.Algorithm != "ed25519" && lf.Signature.Algorithm != "ed25519-platform" {
+		t.Errorf("expected ed25519 or ed25519-platform signature, got %s", lf.Signature.Algorithm)
 	}
 
 	if len(lf.Pipelines) == 0 {
