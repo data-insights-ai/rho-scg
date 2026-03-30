@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.28] - 2026-03-30
+
+### Added
+- **Release pipeline**: GitHub Actions workflow builds, checksums, and publishes binaries on tag push. Server pulls from GitHub Releases via cron (no SSH keys needed).
+- **Landing page**: click-to-copy install command, checksums section, Data Insights AI branding
+
+### Changed
+- **Defense layers section**: concise two-card layout matching the two-layer architecture
+
 ## [0.1.27] - 2026-03-30
 
 ### Changed

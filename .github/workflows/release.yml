@@ -1,0 +1,47 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+
+      - name: setup-go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+
+      - name: test
+        run: make test
+
+      - name: cross-compile
+        run: |
+          VERSION=${GITHUB_REF_NAME}
+          for GOOS in linux darwin; do
+            for GOARCH in amd64 arm64; do
+              echo "Building scg-${GOOS}-${GOARCH}..."
+              CGO_ENABLED=0 GOOS=$GOOS GOARCH=$GOARCH go build \
+                -ldflags "-s -w -X main.version=${VERSION}" \
+                -o dist/scg-${GOOS}-${GOARCH} ./cmd/scg/
+            done
+          done
+
+      - name: checksums
+        run: |
+          cd dist
+          sha256sum scg-* > checksums.txt
+          cat checksums.txt
+
+      - name: github release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/scg-*
+            dist/checksums.txt
+          generate_release_notes: true
