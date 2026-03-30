@@ -3,7 +3,7 @@
 // SCG prevents supply chain attacks by enforcing dependency integrity
 // and secret least-privilege across CI/CD pipelines.
 //
-// All resolution goes through the SCG Platform (api.scg.bds421.com).
+// All resolution goes through the SCG Platform (api.scg.data-insights.ai).
 // No GitHub token, Docker Hub account, or registry credentials needed.
 package main
 
@@ -15,9 +15,9 @@ import (
 	"os"
 	"os/signal"
 
-	"gitlab2024.bds421-cloud.com/bds421/rho/supply-chain-guardian/internal/config"
-	"gitlab2024.bds421-cloud.com/bds421/rho/supply-chain-guardian/platform"
-	"gitlab2024.bds421-cloud.com/bds421/rho/supply-chain-guardian/resolver"
+	"github.com/data-insights-ai/rho-scg/internal/config"
+	"github.com/data-insights-ai/rho-scg/platform"
+	"github.com/data-insights-ai/rho-scg/resolver"
 )
 
 var version = "dev"
@@ -225,7 +225,7 @@ Flags (all commands):
 
 Environment:
   SCG_API_KEY        SCG Platform API key (higher rate limits, optional)
-  SCG_PLATFORM_URL   Platform URL (default: https://api.scg.bds421.com)
+  SCG_PLATFORM_URL   Platform URL (default: https://api.scg.data-insights.ai)
 
 Examples:
   scg init                          # scan and lock all dependencies
@@ -234,6 +234,6 @@ Examples:
   scg scope --step trivy-scan       # audit secrets for a step
   scg audit                         # full security report
 
-Learn more: https://scg.bds421.com
+Learn more: https://scg.data-insights.ai
 `)
 }

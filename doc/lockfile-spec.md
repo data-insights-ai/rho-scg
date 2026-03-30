@@ -115,7 +115,7 @@ The `scg.lock` file records the immutable content digests of all CI/CD dependenc
 
 | Field | Type | Required | Description |
 |---|---|---|---|
-| `algorithm` | string | Yes | `ed25519` or `oidc+ed25519` |
+| `algorithm` | string | Yes | `ed25519`, `ed25519-platform`, or `oidc+ed25519` (planned) |
 | `value` | string | Yes | Base64-encoded signature |
 | `public_key` | string | For ed25519 | Base64-encoded public key |
 | `issuer` | string | For OIDC | OIDC issuer URL |

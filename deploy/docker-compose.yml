@@ -34,7 +34,7 @@ services:
       - "./releases:/usr/share/nginx/html/releases:ro"
     labels:
       traefik.enable: true
-      traefik.http.routers.scg.rule: "Host(`scg.bds421.com`)"
+      traefik.http.routers.scg.rule: "Host(`scg.data-insights.ai`)"
       traefik.http.routers.scg.entrypoints: websecure
       traefik.http.routers.scg.tls.certresolver: letsencrypt
       traefik.http.services.scg.loadbalancer.server.port: 80

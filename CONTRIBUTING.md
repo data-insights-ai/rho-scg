@@ -39,9 +39,7 @@ Adding a new ecosystem (e.g., Docker, PyPI) requires:
 
 ### Security Profiles
 Contributing a DSM profile for a CI/CD tool:
-1. Add the profile to `dsm/embedded.go`
-2. Include: risk tier, required secrets, forbidden patterns with reasons
-3. Each forbidden pattern must have a clear, specific reason
+1. Security profiles are managed on the SCG Platform. Open an issue at https://github.com/data-insights-ai/rho-scg/issues describing the tool, its required secrets, and forbidden patterns with reasons.
 
 ### Bug Reports
 Include:

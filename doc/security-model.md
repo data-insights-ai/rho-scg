@@ -27,14 +27,14 @@ SCG defends against supply chain attacks targeting CI/CD pipelines. The primary 
 Untrusted                          Trusted
 ────────────────────────────────── ────────────────────
 Package registries (npm, PyPI)     scg.lock (signed, committed)
-GitHub Actions marketplace         Embedded DSM profiles
+GitHub Actions marketplace         SCG Platform (pre-verified data)
 Docker Hub                         SCG binary
 CI environment variables           Ed25519/OIDC signatures
 ```
 
 ### What SCG Trusts
 - The `scg.lock` file (after signature verification)
-- The embedded DSM security profiles
+- The SCG Platform API
 - The initial resolution performed during `scg init` (human-reviewed before commit)
 - The OIDC identity provider (for keyless signing)
 
@@ -60,7 +60,6 @@ CI environment variables           Ed25519/OIDC signatures
 
 ## Input Validation
 
-- All Cypher queries use parameter binding (`$param`) — never string concatenation
 - YAML parsing uses `gopkg.in/yaml.v3` with no custom unsafe options
 - HTTP responses from registries are decoded with bounded readers
 - Regex patterns in DSM profiles are compiled and validated before use

@@ -7,7 +7,7 @@
 - **Version:** 0.1.2
 - **Description:** Prevents CI/CD supply chain attacks by enforcing dependency integrity (digest pinning) and secret least-privilege (scoped environment variables).
 - **License:** Apache-2.0
-- **Repository:** https://gitlab2024.bds421-cloud.com/bds421/rho/supply-chain-guardian
+- **Repository:** https://github.com/data-insights-ai/rho-scg
 
 ## Capabilities
 
@@ -62,9 +62,6 @@ SCG is designed to be consumed in multiple ways — not just as a CLI for humans
 
 ### As a CLI subprocess
 Any tool, script, or agent can invoke `scg` as a subprocess and interpret exit codes + stdout. This is the simplest integration path. Exit code 0 = clean, 1 = issues found.
-
-### As a Go library
-Import `graph/`, `resolver/`, `parser/`, `manifest/`, `scoper/` packages directly. No CLI overhead. Full access to the temporal knowledge graph via the Cypher engine.
 
 ### As a CI step
 GitHub Action (`data-insights-ai/scg-action@v1`), GitLab CI template (planned), or raw `curl | sh` in any CI system.

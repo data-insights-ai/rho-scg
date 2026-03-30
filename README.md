@@ -6,7 +6,7 @@ SCG enforces dependency integrity and secret least-privilege across CI/CD pipeli
 
 - **Digest pinning** — locks every dependency to an immutable content hash. Tag hijacking, dependency confusion, and typosquatting are structurally impossible.
 - **Secret scoping** — enforces least-privilege per CI step. A scanner cannot read publish tokens. A linter cannot access cloud credentials.
-- **Drift detection** — catches any change between what you approved and what runs. Powered by a temporal knowledge graph that tracks dependency state over time.
+- **Drift detection** — catches any change between what you approved and what runs. The SCG Platform tracks dependency state continuously across all supported ecosystems.
 
 ## Quick Start
 
@@ -14,10 +14,7 @@ SCG enforces dependency integrity and secret least-privilege across CI/CD pipeli
 
 ```bash
 # Binary (Linux/macOS)
-curl -sSL https://scg.bds421.com/install.sh | sh
-
-# Go
-go install gitlab2024.bds421-cloud.com/bds421/rho/supply-chain-guardian/cmd/scg@latest
+curl -sSL https://scg.data-insights.ai/install.sh | sh
 
 # From source
 git clone https://github.com/data-insights-ai/rho-scg.git
@@ -292,9 +289,9 @@ trivy-action profile:
   Forbids:  PYPI_*, NPM_TOKEN, DOCKER_HUB_PASSWORD, AWS_SECRET_*
 ```
 
-### Temporal Knowledge Graph
+### SCG Platform
 
-Under the hood, SCG models dependencies as a [temporal knowledge graph](doc/architecture.md). Drift detection is a temporal query, not a string comparison. This enables: resolution history, blast radius analysis, and temporal reasoning ("has this tool been stable for 30 days?").
+The SCG Platform at `api.scg.data-insights.ai` continuously crawls and pre-computes digests for all known CI/CD tools across all supported ecosystems. The CLI queries the platform for every resolution — no GitHub token, no Docker Hub account, no registry credentials needed. The platform also hosts curated security profiles for secret scoping.
 
 ---
 
@@ -315,30 +312,34 @@ Zero-config by default. Optional environment variables:
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `GITHUB_TOKEN` | (none) | GitHub API auth (60/hr without, 5,000/hr with) |
-| `SCG_API_KEY` | (none) | SCG Platform subscription key |
+| `SCG_API_KEY` | (none) | SCG Platform subscription key (higher rate limits) |
+| `SCG_PLATFORM_URL` | `https://api.scg.data-insights.ai` | Platform API endpoint |
 | `SCG_LOCKFILE` | `scg.lock` | Lockfile path |
 | `SCG_WORKFLOW_DIR` | `.github/workflows` | Workflow directory |
 | `SCG_LOG_LEVEL` | `info` | debug, info, warn, error |
 
 ## Supported Ecosystems
 
-| Ecosystem | Config Files | Resolver | Status |
-|---|---|---|---|
-| GitHub Actions | `.github/workflows/*.yml` | GitHub API (tag -> SHA) | Implemented |
-| Docker | `Dockerfile` | Docker Registry V2 API (tag -> manifest digest) | Implemented |
-| PyPI | `requirements.txt`, `pyproject.toml` | PyPI JSON API (version -> SHA256) | Implemented |
-| npm | `package.json`, `package-lock.json` | npm Registry (version -> integrity hash) | Implemented |
-| Go | `go.mod`, `go.sum` | go.sum delegation | Planned |
-| Helm | `Chart.yaml` | Helm Chart Registry | Planned |
+| Ecosystem | Config Files | Status |
+|---|---|---|
+| GitHub Actions | `.github/workflows/*.yml` | Implemented |
+| Docker | `Dockerfile` | Implemented |
+| PyPI | `requirements.txt`, `pyproject.toml` | Implemented |
+| npm | `package.json`, `package-lock.json` | Implemented |
+| Go | `go.mod`, `go.sum` | Planned |
+| Helm | `Chart.yaml` | Planned |
 
 ## SCG Platform
 
-The CLI resolves dependencies locally. The **SCG Platform** (optional subscription) adds pre-computed hashes, thousands of curated security profiles, continuous drift monitoring with real-time alerts, 90-day resolution history, and a web dashboard.
+The CLI queries the SCG Platform (`api.scg.data-insights.ai`) for all dependency resolution and security profile lookups. No local resolution, no registry credentials, no fallback. If the platform is unreachable, the check fails — this is by design.
 
 ```bash
+# Works out of the box (20 req/hr anonymous)
+scg check
+
+# Higher rate limits with an API key
 export SCG_API_KEY=scg_live_xxx
-scg check  # now uses platform data
+scg check  # 5,000 req/hr (Pro)
 ```
 
 ---
@@ -347,7 +348,7 @@ scg check  # now uses platform data
 
 | Document | Contents |
 |---|---|
-| [Architecture](doc/architecture.md) | Graph schema, data flow, storage backends |
+| [Architecture](doc/architecture.md) | Platform-first design, data flow, package structure |
 | [Security Model](doc/security-model.md) | Threat model, trust boundaries, input validation |
 | [OIDC Signing](doc/oidc-signing.md) | Keyless signing with CI OIDC tokens |
 | [Getting Started](doc/getting-started.md) | Installation, first run, CI integration |
@@ -367,7 +368,7 @@ Requirements: Go 1.26+
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md). Priority areas: ecosystem parsers/resolvers, security profiles, CI platform integrations.
+See [CONTRIBUTING.md](CONTRIBUTING.md). Priority areas: ecosystem parsers, CI platform integrations.
 
 ## Security
 

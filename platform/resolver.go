@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"gitlab2024.bds421-cloud.com/bds421/rho/supply-chain-guardian/resolver"
+	"github.com/data-insights-ai/rho-scg/resolver"
 )
 
 // PlatformResolver uses the SCG Platform API for resolution instead of

@@ -28,7 +28,7 @@ type SCGConfig struct {
 func Load() *SCGConfig {
 	return &SCGConfig{
 		PlatformAPIKey:  os.Getenv("SCG_API_KEY"),
-		PlatformBaseURL: envOrDefault("SCG_PLATFORM_URL", "https://api.scg.bds421.com"),
+		PlatformBaseURL: envOrDefault("SCG_PLATFORM_URL", "https://api.scg.data-insights.ai"),
 		LogLevel:        envOrDefault("SCG_LOG_LEVEL", "info"),
 		LockfilePath:    envOrDefault("SCG_LOCKFILE", "scg.lock"),
 		WorkflowDir:     envOrDefault("SCG_WORKFLOW_DIR", ".github/workflows"),

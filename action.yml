@@ -60,7 +60,7 @@ runs:
         esac
 
         BINARY="scg-${OS}-${ARCH}"
-        URL="https://scg.bds421.com/releases/${VERSION:-latest}/${BINARY}"
+        URL="https://scg.data-insights.ai/releases/${VERSION:-latest}/${BINARY}"
 
         echo "::group::Install SCG"
         curl -sSL -o /usr/local/bin/scg "$URL" || {

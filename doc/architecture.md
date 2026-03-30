@@ -2,56 +2,30 @@
 
 ## Overview
 
-SCG is a Go CLI that models CI/CD dependencies as a temporal knowledge graph. The graph is the engine; the user interface is a simple CLI. Users never need to know about the graph — it powers the analysis invisibly.
+SCG is a Go CLI that prevents supply chain attacks by enforcing dependency integrity and secret least-privilege in CI/CD pipelines. The CLI queries the SCG Platform API for all data — no registry tokens, no local resolution, no configuration needed.
 
 ```
 User Interface        scg init | check | scope | audit
                            |
-Logic Layer           parser/ -> resolver/ -> manifest/ -> scoper/
+Logic Layer           parser/ -> platform/client.go -> manifest/
                            |
-Graph Engine          TKG v3 (graph/) + Cypher (queries/)
+SCG Platform          api.scg.data-insights.ai
                            |
-Storage               MemoryStore (CLI) | BadgerStore (daemon)
+Data Engine           TKG TieredStore (32,000+ tools, 30 profiles)
 ```
 
 ## Core Design Decisions
 
-### 1. Dependencies Are a Graph
+### 1. Platform-Only Resolution
 
-CI/CD dependencies have natural graph structure:
-- **Nodes**: tools, digests, steps, secrets, pipelines, profiles
-- **Edges**: "resolves to", "uses", "has access to", "forbids"
-- **Time**: resolutions change over time (tags get hijacked)
+The CLI never calls GitHub, Docker Hub, PyPI, or npm directly. All resolution goes through the SCG Platform, which continuously crawls and indexes CI/CD tools. This means:
 
-Modeling this as a graph enables queries that flat data structures can't support efficiently: blast radius analysis, transitive dependency chains, and temporal drift detection.
+- Zero configuration for users (no `GITHUB_TOKEN`, no registry accounts)
+- Pre-computed results (sub-millisecond responses)
+- Centralized drift detection across all users
+- Rate tiers scale with subscription, not registry limits
 
-### 2. Temporal Edges for Drift Detection
-
-The `RESOLVES_TO` relationship between Tool and Digest nodes carries temporal validity:
-
-```
-Time ────────────────────────────────────────────────>
-
-Tool "trivy-action@v1"
-  |── RESOLVES_TO ──> Digest "sha256:57a9..."
-  |   ValidFrom: Jan 1    ValidTo: Mar 15 (attack!)
-  |
-  └── RESOLVES_TO ──> Digest "sha256:ff00..."
-      ValidFrom: Mar 15   ValidTo: (open)
-```
-
-Drift detection becomes a temporal query: "what was this tool resolving to when we locked it, vs. what does it resolve to now?" If different, it's drift. If the version didn't change but the digest did, it's a tag hijack.
-
-### 3. Graph Is Invisible
-
-Users interact with:
-- `scg.lock` — a human-readable JSON lockfile (committed to git)
-- CLI commands — `scg init`, `scg check`, `scg scope`
-- Exit codes — 0 (clean) or 1 (drift/violations)
-
-The graph is an internal implementation detail. The lockfile is the portable artifact.
-
-### 4. Two Independent Defense Layers
+### 2. Two Independent Defense Layers
 
 ```
 Layer 1: Manifest Enforcement
@@ -65,82 +39,38 @@ Layer 2: Secret Scoping
 
 Either layer alone breaks a supply chain attack. Together, they make it structurally impossible.
 
-## Graph Schema
+### 3. Temporal Drift Detection
 
-### Node Labels
+The platform stores resolution history using temporal edges in a knowledge graph. When `actions/checkout@v4` resolves to a different commit SHA than yesterday, that's drift — possibly a tag hijack.
 
-| Label | Properties | Purpose |
-|---|---|---|
-| `Tool` | ecosystem, reference, name, owner | A CI/CD dependency |
-| `Digest` | hash, algorithm, source | An immutable content hash |
-| `Step` | name, workflow, job | A CI pipeline step |
-| `Secret` | name, source, category | An environment variable or credential |
-| `Pipeline` | path, type, repo | A CI/CD pipeline definition |
-| `Profile` | risk_tier, version, audited_by | A tool's security profile |
-| `SecretPattern` | regex, reason | A forbidden secret pattern |
+The CLI doesn't run graph queries — it calls `GET /v1/resolve` and compares the result to what's locked in `scg.lock`.
 
-### Relationship Types
+### 4. Lockfile Is the Portable Artifact
 
-| Type | From -> To | Temporal? | Purpose |
-|---|---|---|---|
-| `RESOLVES_TO` | Tool -> Digest | Yes | Resolution with ValidFrom/ValidTo |
-| `USES` | Step -> Tool | No | Step depends on tool |
-| `HAS_ACCESS` | Step -> Secret | No | Step can read secret |
-| `HAS_PROFILE` | Tool -> Profile | No | Tool has security profile |
-| `REQUIRES` | Profile -> Secret | No | Tool legitimately needs secret |
-| `FORBIDS` | Profile -> SecretPattern | No | Tool must not see matching secrets |
-| `CONTAINS_STEP` | Pipeline -> Step | No | Pipeline contains step |
-
-### Key Queries
-
-**Drift detection** — find tools whose digest changed:
-```cypher
-MATCH (t:Tool {reference: $ref})-[r:RESOLVES_TO]->(d:Digest)
-WHERE r.tkg_valid_to = 0
-RETURN d.hash
-```
-
-**Secret violations** — find exposed secrets that should be blocked:
-```cypher
-MATCH (s:Step {name: $step})-[:USES]->(t:Tool)-[:HAS_PROFILE]->(p:Profile)
-      -[:FORBIDS]->(pat:SecretPattern)
-MATCH (s)-[:HAS_ACCESS]->(sec:Secret)
-WHERE sec.name =~ pat.regex
-RETURN sec.name, pat.reason, t.reference
-```
-
-**Blast radius** — what's affected if a tool is compromised:
-```cypher
-MATCH (t:Tool {reference: $ref})
-RETURN t
-DEPTH 3
-```
+Users interact with:
+- `scg.lock` — a human-readable JSON lockfile (committed to git)
+- CLI commands — `scg init`, `scg check`, `scg scope`
+- Exit codes — 0 (clean) or 1 (drift/violations)
 
 ## Package Structure
 
 ```
-cmd/scg/          CLI entry point — dispatches to subcommands
-graph/            TKG schema, store factory, Cypher query constants
-resolver/         Resolve mutable refs -> immutable digests
-  resolver.go     Interface: Resolver, Resolution, Ecosystem
-  github.go       GitHub Actions: tag -> commit SHA via API
-parser/           Extract refs from CI/CD config files
-  parser.go       Interface: Parser, ToolRef, SecretRef, WorkflowFile
-  workflow.go     GitHub Actions YAML parser
-manifest/         Lockfile lifecycle
-  manifest.go     Data model: Lockfile, ToolEntry, Signature
-  lock.go         Read/write scg.lock (JSON)
-  sign.go         Ed25519 signing + OIDC keyless (future)
-  drift.go        Compare locked vs. live digests
-scoper/           Secret access policy engine
-  scoper.go       Cypher-based policy evaluation
-  env.go          Environment variable scanning
-dsm/              Dependency Security Model
-  embedded.go     Built-in profiles for top CI tools
-  client.go       Platform API client (paid tier)
-platform/         SCG Platform API types and client
-internal/config/  Configuration from environment
-internal/testutil Test helpers
+cmd/scg/           CLI entry point — dispatches to subcommands
+resolver/          Resolver interface and ecosystem types
+parser/            Extract refs from CI/CD config files
+  workflow.go      GitHub Actions YAML parser
+manifest/          Lockfile lifecycle
+  manifest.go      Data model: Lockfile, ToolEntry, Signature
+  lock.go          Read/write scg.lock (JSON)
+  sign.go          Ed25519 signing + platform signing
+  drift.go         Compare locked vs. live digests
+scoper/            Secret access policy engine
+  env.go           Environment variable scanning and matching
+platform/          SCG Platform API client
+  client.go        HTTP client with caching (5 min TTL)
+  resolver.go      PlatformResolver implements resolver.Resolver
+  types.go         API request/response types
+internal/config/   Configuration from environment
 ```
 
 ## Data Flow
@@ -150,89 +80,60 @@ internal/testutil Test helpers
 ```
 1. Discover workflow files (parser/)
 2. Parse each file -> ToolRef[], SecretRef[], StepDef[]
-3. Create in-memory graph (graph/)
-4. Bootstrap DSM profiles into graph (dsm/)
-5. For each ToolRef:
-   a. Resolve reference -> digest (resolver/)
-   b. Create Tool, Digest nodes
-   c. Create RESOLVES_TO relationship (temporal)
-6. Create Step, Secret, Pipeline nodes
-7. Create USES, HAS_ACCESS, CONTAINS_STEP relationships
-8. Create property indexes
-9. Project graph state -> Lockfile
-10. Sign and write scg.lock
+3. For each ToolRef:
+   a. Resolve reference -> digest via platform /v1/resolve
+   b. Record in lockfile structure
+4. Sign lockfile via platform /v1/sign (ed25519-platform)
+   Falls back to local ephemeral ed25519 if platform unreachable
+5. Write scg.lock
 ```
 
 ### `scg check`
 
 ```
 1. Read scg.lock
-2. Verify signature
+2. Verify signature (platform or local ed25519)
 3. For each ToolEntry in lockfile:
-   a. Re-resolve reference -> live digest (resolver/)
+   a. Re-resolve reference via platform /v1/resolve
    b. Compare live digest vs. locked digest
    c. If different: CRITICAL drift (possible tag hijack)
-4. Report results
-5. Exit 0 (clean) or 1 (drift)
+4. If ANY tool cannot be verified: exit 1 (fail-closed)
+5. Report results
+6. Exit 0 (clean) or 1 (drift)
 ```
 
 ### `scg scope`
 
 ```
-1. Create in-memory graph
-2. Bootstrap DSM profiles
-3. Scan environment for secret-like variables (scoper/env.go)
-4. Populate Secret nodes in graph
-5. Execute QuerySecretViolations Cypher query
-6. Report violations (which secrets should be stripped)
-7. Optionally: unset forbidden env vars
+1. Parse workflows to find the named step and its tool
+2. Fetch security profile from platform /v1/profile
+3. Scan local environment for secret-like variables
+4. Match secrets against profile's forbidden regex patterns
+5. Report violations
+6. Optionally: unset forbidden env vars (--sanitize)
 ```
-
-## Storage Backends
-
-| Backend | Use Case | Persistence | Performance |
-|---|---|---|---|
-| MemoryStore | CLI mode (default) | None — ephemeral per run | Fastest |
-| BadgerStore | Daemon mode | Disk-backed, survives restarts | Fast reads, async writes |
-| TieredStore | Platform (future) | Sharded hot/warm/cold | Scales to millions |
-
-The storage backend is selected by configuration, not code changes. All queries work identically across backends.
 
 ## Signing Model
 
-### Ed25519 (default, air-gapped environments)
+### Platform Signing (default)
 
-```
-Generate keypair -> sign lockfile content -> embed signature + public key in scg.lock
-Verify: check ed25519 signature against embedded public key
-```
+The platform signs lockfiles with a persistent ed25519 key. Verification via `GET /v1/pubkey`.
 
-### OIDC Keyless (CI environments, planned)
+### Local Ed25519 (fallback)
 
-```
-1. Get OIDC token from CI provider (GitHub Actions, GitLab, etc.)
-2. Generate ephemeral ed25519 keypair
-3. Sign lockfile with ephemeral key
-4. Embed: signature + ephemeral public key + OIDC claims
-5. Verify: validate OIDC token via JWKS -> verify ed25519 signature
-```
+Ephemeral keypair generated per `scg init`. Public key embedded in lockfile.
 
-No long-lived keys to manage. The CI identity proves who signed.
+### OIDC Keyless (planned, platform tier)
 
-## Future: Tyla Temporal Reasoning
+Identity-bound signing via CI provider OIDC tokens + JWKS verification.
 
-The [Tyla engine](https://gitlab2024.bds421-cloud.com/bds421/sigma/tkgd) enables declarative security policies:
+## Supported Ecosystems
 
-```prolog
-% Transitive dependency risk
-at_risk(T) :- resolves(T, D1), resolves(T, D2), D1 \= D2.
-at_risk(T) :- depends(T, Dep), at_risk(Dep).
-
-% Tool stable for 30 days (box past operator)
-[]_[0, 2592000000] stable(T) :- resolves(T, D).
-
-% Recent drift (diamond past operator)
-<>_[0, 86400000] recent_drift(T) :- at_risk(T).
-```
-
-Security teams write rules, not Go code. SCG evaluates them against the live graph.
+| Ecosystem | Config Files | Status |
+|---|---|---|
+| GitHub Actions | `.github/workflows/*.yml` | Implemented |
+| Docker | `Dockerfile` | Implemented |
+| PyPI | `requirements.txt`, `pyproject.toml` | Implemented |
+| npm | `package.json`, `package-lock.json` | Implemented |
+| Go | `go.mod`, `go.sum` | Planned |
+| Helm | `Chart.yaml` | Planned |

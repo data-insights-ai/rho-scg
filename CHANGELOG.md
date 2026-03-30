@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.27] - 2026-03-30
+
+### Changed
+- **Removed graph dependencies**: eliminated `tkg/v3` and `tkgd` from CLI — dead code after platform-only pivot. Zero private dependencies. Builds anywhere.
+- **Module path**: migrated to `github.com/data-insights-ai/rho-scg`
+- **Domain migration**: all URLs from `scg.bds421.com` to `scg.data-insights.ai`
+- **Binary size**: 18MB → 6.4MB (removed BadgerDB, protobuf, OpenTelemetry transitive deps)
+- **Documentation rewrite**: all `.md` files updated for platform-only architecture
+- **Sensitive data removed**: no server IPs or internal paths in open-source docs
+
+### Removed
+- `graph/` package (schema, store, queries)
+- `dsm/` package (embedded profiles, client stub)
+- `scoper/scoper.go` (Cypher-based Scope function, replaced by platform API)
+- `vendor/` directory (all deps now public)
+
 ## [0.1.26] - 2026-03-30
 
 ### Security fixes
@@ -34,13 +50,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Proper `--verbose` flag registered in every subcommand
 - Clean warning messages (root cause only)
 - Honest verification (fails when all tools skipped)
-- Platform-first resolver (CLI queries api.scg.bds421.com by default)
+- Platform-first resolver (CLI queries api.scg.data-insights.ai by default)
 - No GITHUB_TOKEN needed
 
 ## [0.1.17] - 2026-03-29
 
 ### Added
-- **Platform integration**: `SCG_API_KEY=xxx scg check` routes all resolution through the SCG Platform API at `api.scg.bds421.com`. Pre-computed hashes, no registry rate limits.
+- **Platform integration**: `SCG_API_KEY=xxx scg check` routes all resolution through the SCG Platform API at `api.scg.data-insights.ai`. Pre-computed hashes, no registry rate limits.
 - **Platform resolver** (`platform/resolver.go`): implements `resolver.Resolver` interface backed by platform API GET `/v1/resolve`.
 - **Platform client** (`platform/client.go`): full implementation with GET, POST, auth headers, 10MB response limits, error handling for 401/403/404/429.
 - **Response caching**: 5-minute TTL in-memory cache for platform API responses. Avoids redundant calls for the same tool within a check run.
@@ -49,7 +65,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - `buildResolvers()` in `check.go` auto-selects platform resolvers when `SCG_API_KEY` is set, local resolvers otherwise.
-- Deploy docs updated for separate subdomains: `scg.bds421.com` (CLI), `api.scg.bds421.com` (platform).
+- Deploy docs updated for separate subdomains: `scg.data-insights.ai` (CLI), `api.scg.data-insights.ai` (platform).
 
 ## [0.1.14] - 2026-03-29
 
@@ -190,7 +206,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - README restructured: Quick Start moved above the fold, funnel structure (What → Install → Why → Deep dive)
 - Attack tables sorted chronologically (newest first), split into "Direct" vs "Outside Scope" with honest assessments
 - Removed overclaims on SolarWinds, 3CX, xz/liblzma — clearly marked as indirect/outside SCG's scope
-- All URLs updated to `scg.bds421.com`, email to `security@data-insights.ai`
+- All URLs updated to `scg.data-insights.ai`, email to `security@data-insights.ai`
 - CLAUDE.md consolidated with full package layout, exact dependency versions, session protocol
 
 ### Added
@@ -207,7 +223,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Coverage matrix: digest pinning stops 9/9, secret scoping provides defense-in-depth for 3
 
 ### Changed
-- Platform URL updated to `scg.bds421.com` (from placeholder)
+- Platform URL updated to `scg.data-insights.ai` (from placeholder)
 
 ## [0.1.1] - 2026-03-28
 

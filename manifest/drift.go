@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"gitlab2024.bds421-cloud.com/bds421/rho/supply-chain-guardian/resolver"
+	"github.com/data-insights-ai/rho-scg/resolver"
 )
 
 // Severity indicates the severity of a drift finding.

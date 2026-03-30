@@ -14,11 +14,11 @@ import (
 	"strings"
 	"time"
 
-	"gitlab2024.bds421-cloud.com/bds421/rho/supply-chain-guardian/internal/config"
-	"gitlab2024.bds421-cloud.com/bds421/rho/supply-chain-guardian/manifest"
-	"gitlab2024.bds421-cloud.com/bds421/rho/supply-chain-guardian/parser"
-	"gitlab2024.bds421-cloud.com/bds421/rho/supply-chain-guardian/platform"
-	"gitlab2024.bds421-cloud.com/bds421/rho/supply-chain-guardian/resolver"
+	"github.com/data-insights-ai/rho-scg/internal/config"
+	"github.com/data-insights-ai/rho-scg/manifest"
+	"github.com/data-insights-ai/rho-scg/parser"
+	"github.com/data-insights-ai/rho-scg/platform"
+	"github.com/data-insights-ai/rho-scg/resolver"
 )
 
 // doInit scans workflows, resolves via the platform, builds and signs a lockfile.

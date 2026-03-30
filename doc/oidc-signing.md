@@ -69,5 +69,6 @@ The signature covers the entire lockfile content with the `signature` field set 
 ```bash
 # Signatures are mandatory by default
 scg check                    # fails if unsigned
-scg check --no-verify        # skips verification (not recommended)
+
+
 ```

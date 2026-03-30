@@ -2,7 +2,7 @@
 
 Go CLI that prevents supply chain attacks by enforcing **dependency integrity** and **secret least-privilege** in CI/CD pipelines. Ships as a single binary.
 
-Business model: open-source CLI (free) + Platform API (paid subscription at scg.bds421.com).
+Business model: open-source CLI (free) + Platform API (paid subscription at scg.data-insights.ai).
 
 ## Commands
 
@@ -32,44 +32,24 @@ make clean          # remove binary + coverage
 ## Stack
 
 - Go 1.26.1
-- Module: `gitlab2024.bds421-cloud.com/bds421/rho/supply-chain-guardian`
-- Remote: `git@gitlab2024.bds421-cloud.com:bds421/rho/supply-chain-guardian.git`
-- Private registry: `GOPRIVATE=gitlab2024.bds421-cloud.com/*`
+- Module: `github.com/data-insights-ai/rho-scg`
+- Remote: `git@github.com:data-insights-ai/rho-scg.git`
 
 | Dependency | Module | Purpose |
 |---|---|---|
-| tkg/v3 | `gitlab2024.bds421-cloud.com/bds421/rho/tkg/v3 v3.1.2` | Temporal knowledge graph engine |
-| tkgd | `gitlab2024.bds421-cloud.com/bds421/sigma/tkgd v0.5.8` | Cypher query engine |
 | yaml.v3 | `gopkg.in/yaml.v3 v3.0.1` | GitHub Actions workflow parsing |
+| x/term | `golang.org/x/term` | Terminal detection for colored output |
 
 ## Architecture
 
-SCG uses TKG v3 as its data engine. The graph is invisible to users.
-
-- **CLI mode**: MemoryStore (ephemeral, per-run)
-- **Daemon mode**: BadgerStore (persistent history)
-
-All graph reads use Cypher via `engine.Execute()`. Mutations use the Go API (`g.AddNode`, `g.AddRelationship`) wrapped in transactions.
-
-### Graph Schema
-
-**Node labels**: Tool, Digest, Step, Secret, Pipeline, Profile, SecretPattern
-
-**Relationship types**: RESOLVES_TO (temporal!), USES, HAS_ACCESS, HAS_PROFILE, REQUIRES, FORBIDS, CONTAINS_STEP
-
-The RESOLVES_TO relationship between Tool and Digest carries temporal validity (ValidFrom/ValidTo). When a tag is hijacked, the old relationship ends and a new one begins — drift detection is a temporal query.
+SCG is a platform-only CLI. All resolution and profile queries go through the SCG Platform API at `api.scg.data-insights.ai`. The CLI has no local graph, no local resolvers, and no registry credentials.
 
 ### Package Layout
 
 ```
 cmd/scg/           CLI entry point (stdlib flag, no frameworks)
-graph/
-  schema.go        Labels, rel types, SCGGraph, NewGraph(), EnsureIndexes()
-  store.go         Store config factory (memory | badger)
-  queries.go       Canned Cypher query constants
 resolver/
   resolver.go      Resolver interface, Resolution type, Ecosystem enum
-  github.go        GitHub Actions tag → commit SHA via API
 parser/
   parser.go        Parser interface, ToolRef, SecretRef, WorkflowFile
   workflow.go      GitHub Actions YAML parser
@@ -79,28 +59,25 @@ manifest/
   sign.go          Signer/Verifier interfaces, ed25519 implementation
   drift.go         DetectDrift — compare locked vs live
 scoper/
-  scoper.go        Scope() — Cypher-based policy evaluation
   env.go           ScanEnv(), LooksLikeSecret(), MatchSecrets()
-dsm/
-  embedded.go      Top 10 profiles + Bootstrap() into graph
-  client.go        Platform DSM client stub
 platform/
-  client.go        Platform API client stub
+  client.go        Platform API client
   types.go         API request/response types
+  resolver.go      Platform-backed resolver implementation
 internal/config    SCGConfig from env vars
-internal/testutil  TestGraph(t) helper
+internal/testutil  Test helpers
 ```
 
 ## Key Rules
 
 ### Versioning — NEVER increase minor or major version
-- Only use patch versions (e.g., v0.1.23 → v0.1.24)
+- Only use patch versions (e.g., v0.1.26 → v0.1.27)
 - NEVER bump minor (v0.1.x → v0.2.x) or major version without explicit user approval
 - The user decides when a minor or major version bump is warranted
 - Ask before tagging if unsure
 
 ### Business Model — THE MOST IMPORTANT RULE
-- The platform (api.scg.bds421.com) is the ONLY resolver. Always. No exceptions.
+- The platform (api.scg.data-insights.ai) is the ONLY resolver. Always. No exceptions.
 - The CLI NEVER calls GitHub, Docker Hub, PyPI, or npm APIs directly.
 - GITHUB_TOKEN is NOT used by the CLI. It is used by the platform's crawler on the server.
 - There is NO fallback to local resolution. If the platform is down, the check fails.
@@ -109,14 +86,6 @@ internal/testutil  TestGraph(t) helper
 - ALL resolution goes through the platform. That is the product. That is the business.
 - Never add code that bypasses the platform. Never add "local resolution" as a fallback.
 - Rate tiers: 20/hr anonymous, 100/hr free account, 5000/hr Pro, 50000/hr Enterprise.
-
-### Graph API
-- Never import `graph.Store` — use `*graph.Graph` only
-- Use `tkg_valid_from`/`tkg_valid_to` in relationship props for temporal semantics
-- Use `g.BeginTx()` for multi-entity creates (scg init, scg update)
-- Create property indexes AFTER bootstrap (labels must be registered first)
-- Use `g.ResolveNodeProperty` for `tkg_*` shadow properties, never `GetProperty`
-- Parametrize all Cypher queries (`$param`) — no string concatenation of user input
 
 ### Code Style
 - Files under 500 lines
@@ -141,23 +110,24 @@ internal/testutil  TestGraph(t) helper
 - Every public function gets a direct test
 - Coverage gate: 80% per package
 
-## Current State (v0.1.26)
+## Current State (v0.1.27)
 
 - All 5 commands working: `init`, `check`, `update`, `scope`, `audit`
 - Both layers through the platform:
   - `scg check` → platform `/v1/resolve` (hash verification)
   - `scg scope` → platform `/v1/profile` (secret scoping)
 - No local resolvers. No GITHUB_TOKEN. No fallback.
-- Platform: api.scg.bds421.com (32,000+ tools, 30 profiles)
-- CLI install: scg.bds421.com
+- Platform: api.scg.data-insights.ai (32,000+ tools, 30 profiles)
+- CLI install: scg.data-insights.ai
 - Quiet by default, `--verbose` for logs
 - 119 tests + 4 fuzz targets, race clean
+- Binary size: 6.4 MB (zero graph dependencies)
+- Dependencies: golang.org/x/term, gopkg.in/yaml.v3 (all public)
 - Next: expand profile database (30 → hundreds)
 
 ## Session Protocol
 
 - Session start: `go build ./...` first, then read `tasks/todo.md`
-- Before graph work: review `graph/schema.go` and `graph/queries.go`
 - After corrections: update `tasks/lessons.md` with the pattern
 - Before marking done: `make check` must pass
 - Do not commit — user handles git

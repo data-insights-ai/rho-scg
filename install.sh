@@ -1,14 +1,14 @@
 #!/bin/sh
 # Supply Chain Guardian — Install Script
-# Usage: curl -sSL https://scg.bds421.com/install.sh | sh
+# Usage: curl -sSL https://scg.data-insights.ai/install.sh | sh
 #
 # This script detects your OS and architecture, downloads the correct
 # SCG binary, verifies its checksum, and installs it.
 
 set -e
 
-REPO="bds421/rho/supply-chain-guardian"
-BASE_URL="https://scg.bds421.com/releases"
+REPO="data-insights-ai/rho-scg"
+BASE_URL="https://scg.data-insights.ai/releases"
 INSTALL_DIR="/usr/local/bin"
 BINARY_NAME="scg"
 
@@ -84,7 +84,7 @@ main() {
     fi
     if [ -z "$VERSION" ]; then
         # Fallback: try to get from git tags
-        fail "Could not determine latest version. Set SCG_VERSION=v0.1.13 and retry, or install from source: go install gitlab2024.bds421-cloud.com/bds421/rho/supply-chain-guardian/cmd/scg@latest"
+        fail "Could not determine latest version. Set SCG_VERSION=v0.1.13 and retry, or install from source: go install github.com/data-insights-ai/rho-scg/cmd/scg@latest"
     fi
     info "Version: ${VERSION}"
 

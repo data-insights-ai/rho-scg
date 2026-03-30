@@ -37,4 +37,4 @@ changelog:
       - "^ci:"
 
 release:
-  disable: true  # GitLab releases handled by CI, not goreleaser
+  disable: true  # releases handled by CI pipeline

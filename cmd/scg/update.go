@@ -6,7 +6,7 @@ import (
 	"log/slog"
 	"os"
 
-	"gitlab2024.bds421-cloud.com/bds421/rho/supply-chain-guardian/resolver"
+	"github.com/data-insights-ai/rho-scg/resolver"
 )
 
 // doUpdate re-resolves all dependencies and rewrites the lockfile.

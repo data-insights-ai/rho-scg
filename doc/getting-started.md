@@ -6,10 +6,10 @@
 
 ```bash
 # Linux (amd64)
-curl -sSL https://scg.bds421.com/install.sh | sh
+curl -sSL https://scg.data-insights.ai/install.sh | sh
 
 # macOS (Apple Silicon)
-curl -sSL https://scg.bds421.com/install.sh | sh
+curl -sSL https://scg.data-insights.ai/install.sh | sh
 ```
 
 ### From Source
@@ -22,12 +22,6 @@ make build
 ```
 
 Requirements: Go 1.26+
-
-### Go Install
-
-```bash
-go install gitlab2024.bds421-cloud.com/bds421/rho/supply-chain-guardian/cmd/scg@latest
-```
 
 ## First Run
 
@@ -69,7 +63,7 @@ jobs:
 
       - name: Verify supply chain
         run: |
-          curl -sSL https://scg.bds421.com/install.sh | sh
+          curl -sSL https://scg.data-insights.ai/install.sh | sh
           scg check
 ```
 
@@ -103,24 +97,6 @@ git add scg.lock
 git commit -m "Update dependency digests"
 ```
 
-## Using with GitHub Token
-
-To avoid GitHub API rate limits, set a token:
-
-```bash
-export GITHUB_TOKEN=ghp_xxx
-scg init
-```
-
-In CI, use the built-in `GITHUB_TOKEN`:
-
-```yaml
-      - name: Verify supply chain
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: scg check
-```
-
 ## Full Audit
 
 Run a comprehensive audit of your CI pipeline:
@@ -129,17 +105,15 @@ Run a comprehensive audit of your CI pipeline:
 scg audit
 ```
 
-This combines dependency verification and secret exposure analysis into a single report.
+This combines dependency verification and secret exposure analysis into a single report. Run it in CI where secrets are injected for accurate results.
 
 ## Troubleshooting
 
-### "Could not resolve ref"
-- Ensure `GITHUB_TOKEN` is set for private repositories
-- Check that the action reference is valid (`owner/repo@version`)
+### "tool not found"
+The tool hasn't been indexed by the platform yet. The crawler indexes tools with 100+ stars from known organizations.
 
 ### "Lockfile is not signed"
-- Run `scg update` to regenerate and sign the lockfile
+Run `scg init` to regenerate and sign the lockfile.
 
 ### Rate limiting
-- Set `GITHUB_TOKEN` to increase API rate limits from 60/hour to 5,000/hour
-- Consider SCG Platform (pre-computed hashes, no rate limits)
+Anonymous access: 20 requests/hour. Set `SCG_API_KEY` for higher limits.

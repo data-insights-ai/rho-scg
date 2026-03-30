@@ -6,8 +6,8 @@
 - [x] All 5 commands: init, check, update, scope, audit
 - [x] 4 parsers: GitHub Actions YAML, Dockerfile, PyPI, npm
 - [x] Lockfile: JSON format, ed25519 signing, verification
-- [x] Graph: TKG integration for init/audit (scope uses platform directly)
-- [x] 30 embedded DSM security profiles
+- [x] Platform-only resolution for all commands
+- [x] 30 security profiles (platform-managed)
 - [x] 119 tests + 4 fuzz targets, race clean
 
 ### Platform-Only Architecture
@@ -18,10 +18,10 @@
 - [x] Response caching (5 min TTL)
 
 ### Distribution
-- [x] Install script: scg.bds421.com/install.sh
+- [x] Install script: scg.data-insights.ai/install.sh
 - [x] Cross-compiled binaries: linux/darwin amd64/arm64
 - [x] GitHub Action wrapper: action.yml
-- [x] Landing page: scg.bds421.com with Data Insights AI branding
+- [x] Landing page: scg.data-insights.ai with Data Insights AI branding
 
 ## Current
 

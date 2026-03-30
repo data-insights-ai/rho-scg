@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"gitlab2024.bds421-cloud.com/bds421/rho/supply-chain-guardian/resolver"
+	"github.com/data-insights-ai/rho-scg/resolver"
 )
 
 // --- Lockfile edge cases ---
