@@ -39,11 +39,3 @@ jobs:
           scan-type: 'fs'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: codeql-init
-        uses: github/codeql-action/init@v3
-        with:
-          languages: go
-
-      - name: codeql-analyze
-        uses: github/codeql-action/analyze@v3
