@@ -14,19 +14,10 @@ type ResolveResponse struct {
 
 // ProfileResponse is the platform's response for a profile request.
 type ProfileResponse struct {
-	Tool             string            `json:"tool"`
-	RiskTier         int               `json:"risk_tier"`
-	RequiredSecrets  []SecretSpec      `json:"required_secrets"`
-	ForbiddenSecrets []ForbiddenSpec   `json:"forbidden_secrets"`
-	LastAudited      time.Time         `json:"last_audited"`
-	AuditedBy        string            `json:"audited_by"`
-}
-
-// SecretSpec describes a secret a tool needs.
-type SecretSpec struct {
-	Name        string   `json:"name"`
-	Permissions []string `json:"permissions"`
-	Required    bool     `json:"required"`
+	Tool             string          `json:"tool"`
+	RiskTier         int             `json:"risk_tier"`
+	RequiredSecrets  []string        `json:"required_secrets"`
+	ForbiddenSecrets []ForbiddenSpec `json:"forbidden_patterns"`
 }
 
 // ForbiddenSpec describes a forbidden secret pattern.

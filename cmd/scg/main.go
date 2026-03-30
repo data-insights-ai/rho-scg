@@ -56,6 +56,7 @@ func main() {
 	}
 
 	if err != nil {
+		fmt.Fprintf(os.Stderr, "error: %s\n", err)
 		os.Exit(1)
 	}
 }
@@ -157,9 +158,8 @@ func runScope(ctx context.Context, args []string) error {
 	}
 
 	logger := makeLogger(*verbose)
-	res := platformResolver(resolver.EcoGitHubAction)
 
-	err := doScope(ctx, logger, *workflowDir, *stepName, res, *sanitize)
+	err := doScope(ctx, logger, *workflowDir, *stepName, *sanitize)
 	if *jsonOut {
 		result := &JSONResult{Command: "scope", Status: "ok", ExitCode: 0}
 		if err != nil {
