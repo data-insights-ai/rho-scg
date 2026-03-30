@@ -190,7 +190,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - README restructured: Quick Start moved above the fold, funnel structure (What → Install → Why → Deep dive)
 - Attack tables sorted chronologically (newest first), split into "Direct" vs "Outside Scope" with honest assessments
 - Removed overclaims on SolarWinds, 3CX, xz/liblzma — clearly marked as indirect/outside SCG's scope
-- All URLs updated to `scg.bds421.com`, email to `security@bds421.com`
+- All URLs updated to `scg.bds421.com`, email to `security@data-insights.ai`
 - CLAUDE.md consolidated with full package layout, exact dependency versions, session protocol
 
 ### Added

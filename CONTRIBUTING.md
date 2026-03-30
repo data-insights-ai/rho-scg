@@ -5,7 +5,7 @@ Thank you for your interest in making CI/CD pipelines safer.
 ## Getting Started
 
 ```bash
-git clone https://github.com/bds421/supply-chain-guardian.git
+git clone https://github.com/data-insights-ai/rho-scg.git
 cd supply-chain-guardian
 make check   # build + test + vet
 ```

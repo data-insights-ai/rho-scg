@@ -21,7 +21,7 @@
 - [x] Install script: scg.bds421.com/install.sh
 - [x] Cross-compiled binaries: linux/darwin amd64/arm64
 - [x] GitHub Action wrapper: action.yml
-- [x] Landing page: scg.bds421.com with BDS421 branding
+- [x] Landing page: scg.bds421.com with Data Insights AI branding
 
 ## Current
 

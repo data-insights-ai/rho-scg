@@ -20,7 +20,7 @@ curl -sSL https://scg.bds421.com/install.sh | sh
 go install gitlab2024.bds421-cloud.com/bds421/rho/supply-chain-guardian/cmd/scg@latest
 
 # From source
-git clone https://github.com/bds421/supply-chain-guardian.git
+git clone https://github.com/data-insights-ai/rho-scg.git
 cd supply-chain-guardian && make build
 ```
 
@@ -41,12 +41,12 @@ jobs:
       - uses: actions/checkout@v4
 
       # Verify all dependencies before anything runs
-      - uses: bds421/scg-action@v1
+      - uses: data-insights-ai/scg-action@v1
         with:
           mode: check
 
       # Scope secrets before each sensitive step
-      - uses: bds421/scg-action@v1
+      - uses: data-insights-ai/scg-action@v1
         with:
           mode: scope
           step-name: trivy-scan
@@ -371,7 +371,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md). Priority areas: ecosystem parsers/resolv
 
 ## Security
 
-- **Vulnerabilities:** security@bds421.com
+- **Vulnerabilities:** security@data-insights.ai
 - **Signing:** ed25519 + OIDC keyless (planned)
 - **Dependencies:** minimal tree, audited with `govulncheck`
 

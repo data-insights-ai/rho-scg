@@ -1,6 +1,6 @@
 name: 'Supply Chain Guardian'
 description: 'Enforce dependency integrity and secret least-privilege in CI/CD pipelines'
-author: 'bds421'
+author: "data-insights-ai"
 
 branding:
   icon: 'shield'

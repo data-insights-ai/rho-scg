@@ -67,7 +67,7 @@ Any tool, script, or agent can invoke `scg` as a subprocess and interpret exit c
 Import `graph/`, `resolver/`, `parser/`, `manifest/`, `scoper/` packages directly. No CLI overhead. Full access to the temporal knowledge graph via the Cypher engine.
 
 ### As a CI step
-GitHub Action (`bds421/scg-action@v1`), GitLab CI template (planned), or raw `curl | sh` in any CI system.
+GitHub Action (`data-insights-ai/scg-action@v1`), GitLab CI template (planned), or raw `curl | sh` in any CI system.
 
 ### Via the SCG Platform API
 `GET /v1/resolve/{ecosystem}/{ref}`, `GET /v1/profile/{ecosystem}/{tool}`, `POST /v1/check` (planned). REST API with JSON responses. Requires `SCG_API_KEY`.
