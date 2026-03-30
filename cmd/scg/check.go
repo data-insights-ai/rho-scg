@@ -14,24 +14,22 @@ import (
 )
 
 // doCheck validates a lockfile against live resolution.
-// Signatures are required by default. Use --no-verify to skip (not recommended).
-func doCheck(ctx context.Context, logger *slog.Logger, lockfilePath string, noVerify bool) error {
+// Signatures are always verified. No bypass.
+func doCheck(ctx context.Context, logger *slog.Logger, lockfilePath string) error {
 	// 1. Read lockfile.
 	lf, err := manifest.ReadLockfile(lockfilePath)
 	if err != nil {
 		return fmt.Errorf("read lockfile: %w", err)
 	}
 
-	// 2. Verify signature (mandatory by default).
-	if noVerify {
-		printWarning(os.Stdout, "Signature verification skipped (--no-verify)")
-	} else if lf.Signature != nil {
+	// 2. Verify signature (mandatory, no bypass).
+	if lf.Signature != nil {
 		if err := manifest.VerifyLockfile(lf, &manifest.Ed25519Verifier{}); err != nil {
 			return fmt.Errorf("signature verification failed: %w", err)
 		}
 		printSuccess(os.Stdout, "Signature verified")
 	} else {
-		return fmt.Errorf("lockfile is not signed — run 'scg init' to sign it, or use --no-verify to skip (not recommended)")
+		return fmt.Errorf("lockfile is not signed — run 'scg init' to create a signed lockfile")
 	}
 
 	// 3. Build resolvers for ALL ecosystems.

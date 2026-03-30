@@ -110,13 +110,12 @@ func runCheck(ctx context.Context, args []string) error {
 	fs := flag.NewFlagSet("check", flag.ExitOnError)
 	lockfile := fs.String("lockfile", "scg.lock", "lockfile path")
 	jsonOut := fs.Bool("json", false, "output results as JSON")
-	noVerify := fs.Bool("no-verify", false, "skip signature verification (not recommended)")
 	verbose := fs.Bool("verbose", false, "show detailed resolution progress")
 	fs.Parse(args)
 
 	logger := makeLogger(*verbose)
 
-	err := doCheck(ctx, logger, *lockfile, *noVerify)
+	err := doCheck(ctx, logger, *lockfile)
 	if *jsonOut {
 		result := &JSONResult{Command: "check", Status: "ok", ExitCode: 0}
 		if err != nil {
@@ -215,7 +214,7 @@ Commands:
   check     Validate scg.lock against live state (exit 0=clean, 1=drift)
   update    Re-resolve all dependencies, update scg.lock
   scope     Audit and sanitize secrets for a specific step
-  audit     Full security report across all steps
+  audit     Full security report (run in CI where secrets are injected)
   version   Print version information
 
 Flags (all commands):

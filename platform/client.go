@@ -90,6 +90,15 @@ func (c *Client) FetchProfile(ctx context.Context, ecosystem, reference string) 
 	return &resp, nil
 }
 
+// Sign sends content to the platform for signing with its persistent key.
+func (c *Client) Sign(ctx context.Context, data []byte) (*SignResponse, error) {
+	var resp SignResponse
+	if err := c.post(ctx, "/v1/sign", data, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
 // Check uploads a lockfile and returns drift results from the platform.
 func (c *Client) Check(ctx context.Context, lockfileJSON []byte) (*CheckResponse, error) {
 	if !c.IsConfigured() {

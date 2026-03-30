@@ -41,6 +41,13 @@ type DriftEntry struct {
 	Severity   string `json:"severity"`
 }
 
+// SignResponse is the platform's response for a signing request.
+type SignResponse struct {
+	Algorithm string `json:"algorithm"`
+	Value     string `json:"value"`
+	PublicKey string `json:"public_key"`
+}
+
 // HistoryEntry is a single entry in a tool's resolution history.
 type HistoryEntry struct {
 	Hash       string    `json:"hash"`

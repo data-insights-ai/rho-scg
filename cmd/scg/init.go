@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/ed25519"
 	"crypto/rand"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
@@ -13,8 +14,10 @@ import (
 	"strings"
 	"time"
 
+	"gitlab2024.bds421-cloud.com/bds421/rho/supply-chain-guardian/internal/config"
 	"gitlab2024.bds421-cloud.com/bds421/rho/supply-chain-guardian/manifest"
 	"gitlab2024.bds421-cloud.com/bds421/rho/supply-chain-guardian/parser"
+	"gitlab2024.bds421-cloud.com/bds421/rho/supply-chain-guardian/platform"
 	"gitlab2024.bds421-cloud.com/bds421/rho/supply-chain-guardian/resolver"
 )
 
@@ -43,13 +46,15 @@ func doInit(ctx context.Context, logger *slog.Logger, workflowDir, lockfilePath 
 
 	lf := buildLockfile(workflows, resolved)
 
-	_, privKey, err := ed25519.GenerateKey(rand.Reader)
-	if err != nil {
-		return fmt.Errorf("generate signing key: %w", err)
-	}
-	signer := manifest.NewEd25519Signer(privKey)
-	if err := manifest.SignLockfile(lf, signer); err != nil {
-		return fmt.Errorf("sign lockfile: %w", err)
+	// Sign via platform (persistent key, identity-bound).
+	// Falls back to local ephemeral signing if platform is unreachable (e.g., tests, offline).
+	cfg := config.Load()
+	client := platform.NewClient(cfg.PlatformBaseURL, cfg.PlatformAPIKey)
+	if err := signViaPlat(ctx, client, lf); err != nil {
+		logger.Info("platform signing unavailable, using local ephemeral key", "err", err)
+		if err := signLocal(lf); err != nil {
+			return fmt.Errorf("local signing: %w", err)
+		}
 	}
 
 	if err := manifest.WriteLockfile(lockfilePath, lf); err != nil {
@@ -57,6 +62,38 @@ func doInit(ctx context.Context, logger *slog.Logger, workflowDir, lockfilePath 
 	}
 
 	printInitSummary(os.Stdout, workflows, resolved, lockfilePath)
+	return nil
+}
+
+// signLocal signs with an ephemeral ed25519 key (used when platform is unreachable).
+func signLocal(lf *manifest.Lockfile) error {
+	_, privKey, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		return err
+	}
+	return manifest.SignLockfile(lf, manifest.NewEd25519Signer(privKey))
+}
+
+// signViaPlat sends the lockfile content to the platform for signing.
+func signViaPlat(ctx context.Context, client *platform.Client, lf *manifest.Lockfile) error {
+	// Marshal without signature for signing.
+	stripped := *lf
+	stripped.Signature = nil
+	data, err := json.Marshal(stripped)
+	if err != nil {
+		return fmt.Errorf("marshal for signing: %w", err)
+	}
+
+	sig, err := client.Sign(ctx, data)
+	if err != nil {
+		return err
+	}
+
+	lf.Signature = &manifest.Signature{
+		Algorithm: sig.Algorithm,
+		Value:     sig.Value,
+		PublicKey: sig.PublicKey,
+	}
 	return nil
 }
 
