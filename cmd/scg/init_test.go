@@ -76,6 +76,52 @@ func testdataDir() string {
 	return filepath.Join("..", "..", "internal", "testutil", "testdata")
 }
 
+func testdataMultiDir() string {
+	return filepath.Join("..", "..", "internal", "testutil", "testdata_multi")
+}
+
+// newMultiMockResolvers returns mock resolvers for all ecosystems used in testdata_multi.
+func newMultiMockResolvers() map[resolver.Ecosystem]resolver.Resolver {
+	now := time.Date(2026, 3, 28, 10, 0, 0, 0, time.UTC)
+	ghMock := newMockResolver()
+
+	npmMock := &mockResolver{
+		resolutions: map[string]*resolver.Resolution{
+			"express@4.21.0": {
+				Original: "express@4.21.0", Hash: "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4",
+				Algorithm: "sha512", Source: "mock", ResolvedAt: now,
+			},
+			"lodash@4.17.21": {
+				Original: "lodash@4.17.21", Hash: "f6e5d4c3b2a1f6e5d4c3b2a1f6e5d4c3",
+				Algorithm: "sha512", Source: "mock", ResolvedAt: now,
+			},
+		},
+	}
+
+	pypiMock := &mockResolver{
+		resolutions: map[string]*resolver.Resolution{
+			"requests@2.31.0": {
+				Original: "requests@2.31.0", Hash: "1a2b3c4d5e6f1a2b3c4d5e6f1a2b3c4d",
+				Algorithm: "sha256", Source: "mock", ResolvedAt: now,
+			},
+			"boto3@1.34.0": {
+				Original: "boto3@1.34.0", Hash: "6f5e4d3c2b1a6f5e4d3c2b1a6f5e4d3c",
+				Algorithm: "sha256", Source: "mock", ResolvedAt: now,
+			},
+			"flask@3.0.0": {
+				Original: "flask@3.0.0", Hash: "aabbccddaabbccddaabbccddaabbccdd",
+				Algorithm: "sha256", Source: "mock", ResolvedAt: now,
+			},
+		},
+	}
+
+	return map[resolver.Ecosystem]resolver.Resolver{
+		resolver.EcoGitHubAction: ghMock,
+		resolver.EcoNPM:          npmMock,
+		resolver.EcoPyPI:         pypiMock,
+	}
+}
+
 func TestDiscoverWorkflows(t *testing.T) {
 	paths, err := discoverWorkflows(testdataDir())
 	if err != nil {
@@ -140,15 +186,18 @@ func TestParseAndCollect(t *testing.T) {
 
 func TestResolveTools(t *testing.T) {
 	tools := map[string]*parser.ToolRef{
-		"actions/checkout@v4": {Reference: "actions/checkout@v4"},
-		"actions/setup-go@v5": {Reference: "actions/setup-go@v5"},
+		"actions/checkout@v4": {Reference: "actions/checkout@v4", Ecosystem: "github_action"},
+		"actions/setup-go@v5": {Reference: "actions/setup-go@v5", Ecosystem: "github_action"},
 	}
 
 	mock := newMockResolver()
+	resolvers := map[resolver.Ecosystem]resolver.Resolver{
+		resolver.EcoGitHubAction: mock,
+	}
 	ctx := context.Background()
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
-	resolved, err := resolveTools(ctx, logger, tools, mock)
+	resolved, err := resolveTools(ctx, logger, tools, resolvers)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -176,11 +225,14 @@ func TestBuildLockfile(t *testing.T) {
 	}
 
 	mock := newMockResolver()
+	resolvers := map[resolver.Ecosystem]resolver.Resolver{
+		resolver.EcoGitHubAction: mock,
+	}
 	tools := collectUniqueTools(workflows)
 	ctx := context.Background()
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
-	resolved, err := resolveTools(ctx, logger, tools, mock)
+	resolved, err := resolveTools(ctx, logger, tools, resolvers)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -219,10 +271,13 @@ func TestDoInit_EndToEnd(t *testing.T) {
 	lockfilePath := filepath.Join(tmpDir, "scg.lock")
 
 	mock := newMockResolver()
+	resolvers := map[resolver.Ecosystem]resolver.Resolver{
+		resolver.EcoGitHubAction: mock,
+	}
 	ctx := context.Background()
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
-	err := doInit(ctx, logger, testdataDir(), lockfilePath, mock)
+	err := doInit(ctx, logger, testdataDir(), lockfilePath, resolvers)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -271,6 +326,142 @@ func TestDoInit_EndToEnd(t *testing.T) {
 	err = manifest.VerifyLockfile(lf, &manifest.Ed25519Verifier{})
 	if err != nil {
 		t.Errorf("signature verification failed: %v", err)
+	}
+}
+
+func TestDiscoverLockfiles(t *testing.T) {
+	dir := t.TempDir()
+	// Create lockfiles.
+	for _, name := range []string{"package-lock.json", "requirements.txt", "Dockerfile"} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte("{}"), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// Create a non-lockfile that should be ignored.
+	if err := os.WriteFile(filepath.Join(dir, "README.md"), []byte("hi"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	paths := discoverLockfiles(dir)
+	if len(paths) != 3 {
+		t.Fatalf("expected 3 lockfiles, got %d: %v", len(paths), paths)
+	}
+}
+
+func TestDiscoverLockfiles_Empty(t *testing.T) {
+	dir := t.TempDir()
+	paths := discoverLockfiles(dir)
+	if len(paths) != 0 {
+		t.Errorf("expected 0 lockfiles, got %d", len(paths))
+	}
+}
+
+func TestDiscoverLockfiles_NonexistentDir(t *testing.T) {
+	paths := discoverLockfiles("/nonexistent/path")
+	if len(paths) != 0 {
+		t.Errorf("expected 0 lockfiles for missing dir, got %d", len(paths))
+	}
+}
+
+func TestParseWithMultiParser(t *testing.T) {
+	dir := t.TempDir()
+
+	// Create a package-lock.json.
+	npmContent := []byte(`{"lockfileVersion":3,"packages":{"":{"name":"app"},"node_modules/express":{"version":"4.21.0"}}}`)
+	if err := os.WriteFile(filepath.Join(dir, "package-lock.json"), npmContent, 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a requirements.txt.
+	pypiContent := []byte("requests==2.31.0\n")
+	if err := os.WriteFile(filepath.Join(dir, "requirements.txt"), pypiContent, 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	paths := []string{
+		filepath.Join(dir, "package-lock.json"),
+		filepath.Join(dir, "requirements.txt"),
+	}
+
+	parsers := []parser.Parser{
+		parser.NewNPMPackageParser(),
+		parser.NewPyPIRequirementsParser(),
+		parser.NewDockerfileParser(),
+	}
+
+	results, err := parseWithMultiParser(parsers, paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(results) != 2 {
+		t.Fatalf("expected 2 results, got %d", len(results))
+	}
+
+	types := make(map[string]bool)
+	for _, r := range results {
+		types[r.Type] = true
+	}
+	if !types["npm"] {
+		t.Error("expected npm parse result")
+	}
+	if !types["pypi"] {
+		t.Error("expected pypi parse result")
+	}
+}
+
+func TestDoInit_WithLockfiles(t *testing.T) {
+	tmpDir := t.TempDir()
+	lockfilePath := filepath.Join(tmpDir, "scg.lock")
+
+	resolvers := newMultiMockResolvers()
+	ctx := context.Background()
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+
+	workflowDir := filepath.Join(testdataMultiDir(), ".github", "workflows")
+	err := doInit(ctx, logger, workflowDir, lockfilePath, resolvers)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	lf, err := manifest.ReadLockfile(lockfilePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Should have pipelines for: workflow, npm, pypi.
+	if len(lf.Pipelines) < 3 {
+		t.Errorf("expected at least 3 pipelines, got %d", len(lf.Pipelines))
+		for _, p := range lf.Pipelines {
+			t.Logf("  pipeline: %s (type=%s)", p.Path, p.Type)
+		}
+	}
+
+	// Collect all ecosystem types.
+	ecosystems := make(map[string]bool)
+	for _, p := range lf.Pipelines {
+		ecosystems[p.Type] = true
+	}
+	if !ecosystems["github_actions"] {
+		t.Error("expected github_actions pipeline")
+	}
+	if !ecosystems["npm"] {
+		t.Error("expected npm pipeline")
+	}
+	if !ecosystems["pypi"] {
+		t.Error("expected pypi pipeline")
+	}
+
+	// Count total tools.
+	totalTools := 0
+	for _, p := range lf.Pipelines {
+		for _, s := range p.Steps {
+			totalTools += len(s.Tools)
+		}
+	}
+	// 4 github actions + 2 npm + 3 pypi = 9 minimum (checkout appears in 2 steps = 5 + 2 + 3 = 10)
+	if totalTools < 9 {
+		t.Errorf("expected at least 9 total tool entries, got %d", totalTools)
 	}
 }
 

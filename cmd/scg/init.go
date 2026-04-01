@@ -23,7 +23,7 @@ import (
 
 // doInit scans workflows, resolves via the platform, builds and signs a lockfile.
 // No local graph, no DSM bootstrap — the platform handles everything.
-func doInit(ctx context.Context, logger *slog.Logger, workflowDir, lockfilePath string, res resolver.Resolver) error {
+func doInit(ctx context.Context, logger *slog.Logger, workflowDir, lockfilePath string, resolvers map[resolver.Ecosystem]resolver.Resolver) error {
 	paths, err := discoverWorkflows(workflowDir)
 	if err != nil {
 		return err
@@ -36,10 +36,28 @@ func doInit(ctx context.Context, logger *slog.Logger, workflowDir, lockfilePath 
 		return err
 	}
 
+	// Discover and parse lockfiles (package-lock.json, requirements.txt, Dockerfile)
+	// in the repo root derived from the workflow directory.
+	repoRoot := filepath.Dir(filepath.Dir(workflowDir))
+	lockfilePaths := discoverLockfiles(repoRoot)
+	if len(lockfilePaths) > 0 {
+		logger.Info("discovered lockfiles", "count", len(lockfilePaths))
+		parsers := []parser.Parser{
+			parser.NewNPMPackageParser(),
+			parser.NewPyPIRequirementsParser(),
+			parser.NewDockerfileParser(),
+		}
+		extra, err := parseWithMultiParser(parsers, lockfilePaths)
+		if err != nil {
+			return err
+		}
+		workflows = append(workflows, extra...)
+	}
+
 	uniqueTools := collectUniqueTools(workflows)
 	logger.Info("found dependencies", "tools", len(uniqueTools))
 
-	resolved, err := resolveTools(ctx, logger, uniqueTools, res)
+	resolved, err := resolveTools(ctx, logger, uniqueTools, resolvers)
 	if err != nil {
 		return err
 	}
@@ -162,7 +180,7 @@ func collectUniqueTools(workflows []*parser.WorkflowFile) map[string]*parser.Too
 }
 
 // resolveTools resolves each unique tool reference via the platform.
-func resolveTools(ctx context.Context, logger *slog.Logger, tools map[string]*parser.ToolRef, res resolver.Resolver) (map[string]*resolver.Resolution, error) {
+func resolveTools(ctx context.Context, logger *slog.Logger, tools map[string]*parser.ToolRef, resolvers map[resolver.Ecosystem]resolver.Resolver) (map[string]*resolver.Resolution, error) {
 	resolved := make(map[string]*resolver.Resolution, len(tools))
 
 	refs := make([]string, 0, len(tools))
@@ -172,7 +190,13 @@ func resolveTools(ctx context.Context, logger *slog.Logger, tools map[string]*pa
 	sort.Strings(refs)
 
 	for _, ref := range refs {
-		logger.Info("resolving", "ref", ref)
+		tool := tools[ref]
+		eco := resolver.Ecosystem(tool.Ecosystem)
+		res, ok := resolvers[eco]
+		if !ok {
+			return nil, fmt.Errorf("no resolver for ecosystem %q (tool %s)", eco, ref)
+		}
+		logger.Info("resolving", "ref", ref, "ecosystem", string(eco))
 		r, err := res.Resolve(ctx, ref)
 		if err != nil {
 			return nil, fmt.Errorf("resolve %s: %w", ref, err)
@@ -238,6 +262,71 @@ func buildLockfile(workflows []*parser.WorkflowFile, resolved map[string]*resolv
 	}
 
 	return lf
+}
+
+// discoverLockfiles finds ecosystem lockfiles in the repo root directory.
+// Returns a sorted list of paths. Empty slice if none found (not an error).
+func discoverLockfiles(repoRoot string) []string {
+	info, err := os.Stat(repoRoot)
+	if err != nil || !info.IsDir() {
+		return nil
+	}
+
+	entries, err := os.ReadDir(repoRoot)
+	if err != nil {
+		return nil
+	}
+
+	var paths []string
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		name := e.Name()
+		switch {
+		case name == "package-lock.json":
+			paths = append(paths, filepath.Join(repoRoot, name))
+		case name == "requirements.txt" ||
+			(strings.HasPrefix(name, "requirements-") && strings.HasSuffix(name, ".txt")):
+			paths = append(paths, filepath.Join(repoRoot, name))
+		case strings.EqualFold(name, "dockerfile") ||
+			strings.HasSuffix(strings.ToLower(name), ".dockerfile") ||
+			strings.HasPrefix(strings.ToLower(name), "dockerfile."):
+			paths = append(paths, filepath.Join(repoRoot, name))
+		}
+	}
+
+	sort.Strings(paths)
+	return paths
+}
+
+// parseWithMultiParser routes each file to the first parser that supports it.
+func parseWithMultiParser(parsers []parser.Parser, paths []string) ([]*parser.WorkflowFile, error) {
+	var results []*parser.WorkflowFile
+	for _, path := range paths {
+		content, err := os.ReadFile(path)
+		if err != nil {
+			return nil, fmt.Errorf("read %s: %w", path, err)
+		}
+
+		var matched parser.Parser
+		for _, p := range parsers {
+			if p.Supports(path) {
+				matched = p
+				break
+			}
+		}
+		if matched == nil {
+			continue // no parser supports this file
+		}
+
+		wf, err := matched.Parse(path, content)
+		if err != nil {
+			return nil, fmt.Errorf("parse %s: %w", path, err)
+		}
+		results = append(results, wf)
+	}
+	return results, nil
 }
 
 // extractBaseRef strips @version from a reference.

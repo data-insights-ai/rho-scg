@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.30] - 2026-04-01
+
+### Added
+- **npm parser** (`parser/npm.go`): parses `package-lock.json` (v1 with recursive dependencies, v2/v3 with flat packages map). Handles scoped packages (`@scope/pkg`). 8 tests + fuzz target.
+- **PyPI parser** (`parser/pypi.go`): parses `requirements.txt` and `requirements-*.txt`. Supports `==`, `>=`, `~=` version operators. Strips extras, inline comments, environment markers, pip options. 10 tests + fuzz target.
+- **Multi-ecosystem init**: `scg init` auto-discovers `package-lock.json`, `requirements.txt`, and `Dockerfile` in the repo root alongside workflow files. All ecosystems resolved through the platform in a single lockfile.
+- **Multi-ecosystem test fixtures**: `internal/testutil/testdata_multi/` with workflows + npm + pypi for integration testing.
+
+### Changed
+- **Multi-resolver architecture**: `doInit`, `doAudit`, `resolveTools` accept `map[resolver.Ecosystem]resolver.Resolver` instead of a single resolver. Per-tool ecosystem routing via `buildResolvers()` (same pattern as `check.go`).
+- **Removed `platformResolver()` function** from `main.go` — replaced by `buildResolvers()` which covers all 4 ecosystems (github_action, docker, npm, pypi).
+- Test count: 119 -> 130 tests, 4 -> 6 fuzz targets. All race clean.
+
 ## [0.1.28] - 2026-03-30
 
 ### Added

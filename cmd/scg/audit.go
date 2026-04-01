@@ -24,7 +24,7 @@ type auditViolation struct {
 
 // doAudit runs a full security audit: drift detection + secret exposure analysis.
 // Both layers go through the platform — no local graph.
-func doAudit(ctx context.Context, logger *slog.Logger, workflowDir, lockfilePath string, res resolver.Resolver) error {
+func doAudit(ctx context.Context, logger *slog.Logger, workflowDir, lockfilePath string, resolvers map[resolver.Ecosystem]resolver.Resolver) error {
 	paths, err := discoverWorkflows(workflowDir)
 	if err != nil {
 		return err
@@ -37,7 +37,7 @@ func doAudit(ctx context.Context, logger *slog.Logger, workflowDir, lockfilePath
 	}
 
 	uniqueTools := collectUniqueTools(workflows)
-	resolved, err := resolveTools(ctx, logger, uniqueTools, res)
+	resolved, err := resolveTools(ctx, logger, uniqueTools, resolvers)
 	if err != nil {
 		return err
 	}

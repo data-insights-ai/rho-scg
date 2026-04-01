@@ -22,7 +22,7 @@ func TestDoCheck_Clean(t *testing.T) {
 	ctx := context.Background()
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
-	if err := doInit(ctx, logger, testdataDir(), lockfilePath, mock); err != nil {
+	if err := doInit(ctx, logger, testdataDir(), lockfilePath, map[resolver.Ecosystem]resolver.Resolver{resolver.EcoGitHubAction: mock}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -62,7 +62,7 @@ func TestDoCheck_DriftDetected(t *testing.T) {
 	ctx := context.Background()
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
-	if err := doInit(ctx, logger, testdataDir(), lockfilePath, mock); err != nil {
+	if err := doInit(ctx, logger, testdataDir(), lockfilePath, map[resolver.Ecosystem]resolver.Resolver{resolver.EcoGitHubAction: mock}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -137,7 +137,7 @@ func TestDoCheck_DriftDetected_MultipleTools(t *testing.T) {
 	ctx := context.Background()
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
-	if err := doInit(ctx, logger, testdataDir(), lockfilePath, mock); err != nil {
+	if err := doInit(ctx, logger, testdataDir(), lockfilePath, map[resolver.Ecosystem]resolver.Resolver{resolver.EcoGitHubAction: mock}); err != nil {
 		t.Fatal(err)
 	}
 

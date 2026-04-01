@@ -53,6 +53,9 @@ resolver/
 parser/
   parser.go        Parser interface, ToolRef, SecretRef, WorkflowFile
   workflow.go      GitHub Actions YAML parser
+  dockerfile.go    Dockerfile FROM directive parser
+  npm.go           package-lock.json parser (v1/v2/v3)
+  pypi.go          requirements.txt parser
 manifest/
   manifest.go      Lockfile data model (JSON)
   lock.go          ReadLockfile / WriteLockfile
@@ -110,17 +113,20 @@ internal/testutil  Test helpers
 - Every public function gets a direct test
 - Coverage gate: 80% per package
 
-## Current State (v0.1.27)
+## Current State (v0.1.30)
 
 - All 5 commands working: `init`, `check`, `update`, `scope`, `audit`
 - Both layers through the platform:
   - `scg check` → platform `/v1/resolve` (hash verification)
   - `scg scope` → platform `/v1/profile` (secret scoping)
+- Multi-ecosystem parsing: GitHub Actions, Docker, npm, PyPI
+  - `scg init` auto-discovers `package-lock.json`, `requirements.txt`, `Dockerfile` in repo root
+  - Per-ecosystem resolver routing via `buildResolvers()` map
 - No local resolvers. No GITHUB_TOKEN. No fallback.
 - Platform: api.scg.data-insights.ai (32,000+ tools, 30 profiles)
 - CLI install: scg.data-insights.ai
 - Quiet by default, `--verbose` for logs
-- 119 tests + 4 fuzz targets, race clean
+- 130 tests + 6 fuzz targets, race clean
 - Binary size: 6.4 MB (zero graph dependencies)
 - Dependencies: golang.org/x/term, gopkg.in/yaml.v3 (all public)
 - Next: expand profile database (30 → hundreds)

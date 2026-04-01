@@ -147,9 +147,9 @@ func TestParseActionRef_Adversarial(t *testing.T) {
 		"owner/repo@",
 		string(make([]byte, 10000)) + "@v1", // 10KB owner
 		"owner/repo@" + string(make([]byte, 10000)), // 10KB ref
-		"owner\x00/repo@v1",   // null byte
-		"owner/repo\n@v1",     // newline
-		"owner/repo@v1\r\nHost: evil.com", // header injection attempt
+		"owner\x00/repo@v1",                         // null byte
+		"owner/repo\n@v1",                           // newline
+		"owner/repo@v1\r\nHost: evil.com",           // header injection attempt
 	}
 
 	for _, input := range adversarial {

@@ -14,10 +14,6 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
-
-	"github.com/data-insights-ai/rho-scg/internal/config"
-	"github.com/data-insights-ai/rho-scg/platform"
-	"github.com/data-insights-ai/rho-scg/resolver"
 )
 
 var version = "dev"
@@ -70,14 +66,6 @@ func makeLogger(verbose bool) *slog.Logger {
 	return slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: level}))
 }
 
-// platformResolver creates a resolver that queries the SCG Platform.
-// This is the ONLY way the CLI resolves dependencies. No local resolution.
-func platformResolver(eco resolver.Ecosystem) resolver.Resolver {
-	cfg := config.Load()
-	client := platform.NewClient(cfg.PlatformBaseURL, cfg.PlatformAPIKey)
-	return platform.NewPlatformResolver(client, eco)
-}
-
 func runInit(ctx context.Context, args []string) error {
 	fs := flag.NewFlagSet("init", flag.ExitOnError)
 	workflowDir := fs.String("workflows", ".github/workflows", "workflow directory to scan")
@@ -87,9 +75,9 @@ func runInit(ctx context.Context, args []string) error {
 	fs.Parse(args)
 
 	logger := makeLogger(*verbose)
-	res := platformResolver(resolver.EcoGitHubAction)
+	resolvers := buildResolvers()
 
-	err := doInit(ctx, logger, *workflowDir, *lockfile, res)
+	err := doInit(ctx, logger, *workflowDir, *lockfile, resolvers)
 	if *jsonOut {
 		result := &JSONResult{Command: "init", Status: "ok", ExitCode: 0}
 		if err != nil {
@@ -184,9 +172,9 @@ func runAudit(ctx context.Context, args []string) error {
 	fs.Parse(args)
 
 	logger := makeLogger(*verbose)
-	res := platformResolver(resolver.EcoGitHubAction)
+	resolvers := buildResolvers()
 
-	err := doAudit(ctx, logger, *workflowDir, *lockfile, res)
+	err := doAudit(ctx, logger, *workflowDir, *lockfile, resolvers)
 	if *jsonOut {
 		result := &JSONResult{Command: "audit", Status: "ok", ExitCode: 0}
 		if err != nil {

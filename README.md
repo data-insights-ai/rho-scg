@@ -323,9 +323,9 @@ Zero-config by default. Optional environment variables:
 | Ecosystem | Config Files | Status |
 |---|---|---|
 | GitHub Actions | `.github/workflows/*.yml` | Implemented |
-| Docker | `Dockerfile` | Implemented |
-| PyPI | `requirements.txt`, `pyproject.toml` | Implemented |
-| npm | `package.json`, `package-lock.json` | Implemented |
+| Docker | `Dockerfile`, `*.dockerfile` | Implemented |
+| npm | `package-lock.json` | Implemented |
+| PyPI | `requirements.txt`, `requirements-*.txt` | Implemented |
 | Go | `go.mod`, `go.sum` | Planned |
 | Helm | `Chart.yaml` | Planned |
 

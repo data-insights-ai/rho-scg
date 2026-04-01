@@ -57,3 +57,31 @@ COPY --from=builder /app /app`))
 		p.Parse("Dockerfile", data)
 	})
 }
+
+func FuzzNPMParse(f *testing.F) {
+	f.Add([]byte(`{"lockfileVersion":3,"packages":{"":{"name":"app"},"node_modules/express":{"version":"4.21.0"}}}`))
+	f.Add([]byte(`{"lockfileVersion":1,"dependencies":{"lodash":{"version":"4.17.21"}}}`))
+	f.Add([]byte(`{}`))
+	f.Add([]byte(``))
+	f.Add([]byte(`{"packages":{"node_modules/@scope/pkg":{"version":"1.0.0"}}}`))
+
+	p := NewNPMPackageParser()
+	f.Fuzz(func(t *testing.T, data []byte) {
+		// Must not panic for any input.
+		p.Parse("package-lock.json", data)
+	})
+}
+
+func FuzzPyPIParse(f *testing.F) {
+	f.Add([]byte("requests==2.31.0\nflask>=2.0\n"))
+	f.Add([]byte("# comment\nrequests[security]==2.28.0\n"))
+	f.Add([]byte("-r other.txt\n-e git+https://example.com\n"))
+	f.Add([]byte(""))
+	f.Add([]byte("pkg==1.0 ; python_version >= \"3.8\"\n"))
+
+	p := NewPyPIRequirementsParser()
+	f.Fuzz(func(t *testing.T, data []byte) {
+		// Must not panic for any input.
+		p.Parse("requirements.txt", data)
+	})
+}

@@ -50,7 +50,7 @@ type SignResponse struct {
 
 // HistoryEntry is a single entry in a tool's resolution history.
 type HistoryEntry struct {
-	Hash       string    `json:"hash"`
-	ValidFrom  time.Time `json:"valid_from"`
-	ValidTo    time.Time `json:"valid_to,omitempty"`
+	Hash      string    `json:"hash"`
+	ValidFrom time.Time `json:"valid_from"`
+	ValidTo   time.Time `json:"valid_to,omitempty"`
 }
