@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.31] - 2026-06-03
+
+### Added
+- **pnpm parser** (`parser/pnpm.go`): parses `pnpm-lock.yaml` (v6 with leading-slash keys like `/lodash@4.17.21`, v9 with bare `name@version` keys). Strips peer-dependency suffixes (`pkg@1.0.0(peer@2.0.0)` → `pkg@1.0.0`), handles scoped packages (`@scope/pkg`), and skips non-registry deps (directory/link/git) that carry no integrity. References are emitted without hashes — the resolver fills those in, matching the npm/PyPI parsers. 4 tests.
+- **pnpm in multi-ecosystem init**: `scg init` now auto-discovers `pnpm-lock.yaml` in the repo root alongside `package-lock.json`, `requirements.txt`, and `Dockerfile`.
+
 ## [0.1.30] - 2026-04-01
 
 ### Added

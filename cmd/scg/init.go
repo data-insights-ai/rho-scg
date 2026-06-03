@@ -44,6 +44,7 @@ func doInit(ctx context.Context, logger *slog.Logger, workflowDir, lockfilePath 
 		logger.Info("discovered lockfiles", "count", len(lockfilePaths))
 		parsers := []parser.Parser{
 			parser.NewNPMPackageParser(),
+			parser.NewPNPMLockParser(),
 			parser.NewPyPIRequirementsParser(),
 			parser.NewDockerfileParser(),
 		}
@@ -284,7 +285,7 @@ func discoverLockfiles(repoRoot string) []string {
 		}
 		name := e.Name()
 		switch {
-		case name == "package-lock.json":
+		case name == "package-lock.json" || name == "pnpm-lock.yaml":
 			paths = append(paths, filepath.Join(repoRoot, name))
 		case name == "requirements.txt" ||
 			(strings.HasPrefix(name, "requirements-") && strings.HasSuffix(name, ".txt")):
