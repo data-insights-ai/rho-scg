@@ -112,6 +112,17 @@ func (c *Client) Check(ctx context.Context, lockfileJSON []byte) (*CheckResponse
 	return &resp, nil
 }
 
+// RecentIntel fetches recent threat-intel events from the platform. The
+// /v1/intel/recent feed is public, so no API key is required.
+func (c *Client) RecentIntel(ctx context.Context, limit int) ([]IntelEvent, error) {
+	path := fmt.Sprintf("/v1/intel/recent?limit=%d", limit)
+	var events []IntelEvent
+	if err := c.get(ctx, path, &events); err != nil {
+		return nil, err
+	}
+	return events, nil
+}
+
 // get performs an authenticated GET request and decodes the JSON response.
 func (c *Client) get(ctx context.Context, path string, dst any) error {
 	reqURL := c.baseURL + path

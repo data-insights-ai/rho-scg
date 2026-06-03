@@ -54,3 +54,16 @@ type HistoryEntry struct {
 	ValidFrom time.Time `json:"valid_from"`
 	ValidTo   time.Time `json:"valid_to,omitempty"`
 }
+
+// IntelEvent is a threat-intelligence event from /v1/intel/recent
+// (a drift or burst signal detected by the platform).
+type IntelEvent struct {
+	ID        string         `json:"id"`
+	Type      string         `json:"type"`     // "drift", "burst", ...
+	Severity  string         `json:"severity"` // "critical", "high", "medium", "low"
+	Ecosystem string         `json:"ecosystem"`
+	Tool      string         `json:"tool"`
+	Summary   string         `json:"summary"`
+	Details   map[string]any `json:"details,omitempty"`
+	Timestamp time.Time      `json:"timestamp"`
+}

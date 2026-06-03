@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.32] - 2026-06-03
+
+### Added
+- **`scg intel` command**: shows recent threat-intel events (drift, bursts) from the platform's public `/v1/intel/recent` feed. `--limit N` (default 20) and `--json` for machine-readable output. No API key required (public feed). New `platform.Client.RecentIntel` + `platform.IntelEvent`.
+
 ## [0.1.31] - 2026-06-03
 
 ### Added

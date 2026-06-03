@@ -39,6 +39,8 @@ func main() {
 		err = runScope(ctx, os.Args[2:])
 	case "audit":
 		err = runAudit(ctx, os.Args[2:])
+	case "intel":
+		err = runIntel(ctx, os.Args[2:])
 	case "version":
 		fmt.Printf("scg %s\n", version)
 		return
@@ -191,6 +193,14 @@ func runAudit(ctx context.Context, args []string) error {
 	return err
 }
 
+func runIntel(ctx context.Context, args []string) error {
+	fs := flag.NewFlagSet("intel", flag.ExitOnError)
+	limit := fs.Int("limit", 20, "number of recent events to show")
+	jsonOut := fs.Bool("json", false, "output events as JSON")
+	fs.Parse(args)
+	return doIntel(ctx, *limit, *jsonOut)
+}
+
 func printUsage() {
 	fmt.Fprint(os.Stderr, `Supply Chain Guardian — prevent supply chain attacks in CI/CD pipelines
 
@@ -203,6 +213,7 @@ Commands:
   update    Re-resolve all dependencies, update scg.lock
   scope     Audit and sanitize secrets for a specific step
   audit     Full security report (run in CI where secrets are injected)
+  intel     Show recent threat-intel events (drift, bursts) from the platform
   version   Print version information
 
 Flags (all commands):
@@ -221,6 +232,7 @@ Examples:
   scg check --verbose               # show resolution details
   scg scope --step trivy-scan       # audit secrets for a step
   scg audit                         # full security report
+  scg intel --limit 50              # recent drift/burst events
 
 Learn more: https://scg.data-insights.ai
 `)
