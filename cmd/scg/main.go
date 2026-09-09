@@ -83,15 +83,23 @@ func runInit(ctx context.Context, args []string) error {
 	workflowDir := fs.String("workflows", ".github/workflows", "workflow directory to scan")
 	lockfile := fs.String("lockfile", "scg.lock", "output lockfile path")
 	jsonOut := fs.Bool("json", false, "output results as JSON")
+	timeout := fs.String("timeout", "", "overall time limit, e.g. 90s or 5m (0 disables)")
 	verbose := fs.Bool("verbose", false, "show detailed resolution progress")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 
+	limit, err := parseTimeout(*timeout)
+	if err != nil {
+		return err
+	}
+	ctx, cancel := withCommandDeadline(ctx, limit)
+	defer cancel()
+
 	logger := makeLogger(*verbose)
 	resolvers := buildResolvers()
 
-	err := doInit(ctx, logger, *workflowDir, *lockfile, resolvers, newPlatformSigner())
+	err = classifyDeadline(ctx, doInit(ctx, logger, *workflowDir, *lockfile, resolvers, newPlatformSigner()), limit)
 	if *jsonOut {
 		result := &JSONResult{Command: "init", Status: "ok", ExitCode: 0}
 		if err != nil {
@@ -113,14 +121,22 @@ func runCheck(ctx context.Context, args []string) error {
 	lockfile := fs.String("lockfile", "scg.lock", "lockfile path")
 	jsonOut := fs.Bool("json", false, "output results as JSON")
 	sarif := fs.String("sarif", "", "write findings as SARIF to this path (for GitHub code scanning)")
+	timeout := fs.String("timeout", "", "overall time limit, e.g. 90s or 5m (0 disables)")
 	verbose := fs.Bool("verbose", false, "show detailed resolution progress")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 
+	limit, err := parseTimeout(*timeout)
+	if err != nil {
+		return err
+	}
+	ctx, cancel := withCommandDeadline(ctx, limit)
+	defer cancel()
+
 	logger := makeLogger(*verbose)
 
-	err := doCheck(ctx, logger, *lockfile, *sarif)
+	err = classifyDeadline(ctx, doCheck(ctx, logger, *lockfile, *sarif), limit)
 	if *jsonOut {
 		result := &JSONResult{Command: "check", Status: "ok", ExitCode: 0}
 		if err != nil {
@@ -141,13 +157,21 @@ func runUpdate(ctx context.Context, args []string) error {
 	fs := flag.NewFlagSet("update", flag.ExitOnError)
 	workflowDir := fs.String("workflows", ".github/workflows", "workflow directory to scan")
 	lockfile := fs.String("lockfile", "scg.lock", "lockfile path")
+	timeout := fs.String("timeout", "", "overall time limit, e.g. 90s or 5m (0 disables)")
 	verbose := fs.Bool("verbose", false, "show detailed resolution progress")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 
+	limit, err := parseTimeout(*timeout)
+	if err != nil {
+		return err
+	}
+	ctx, cancel := withCommandDeadline(ctx, limit)
+	defer cancel()
+
 	logger := makeLogger(*verbose)
-	return doUpdate(ctx, logger, *workflowDir, *lockfile)
+	return classifyDeadline(ctx, doUpdate(ctx, logger, *workflowDir, *lockfile), limit)
 }
 
 func runScope(ctx context.Context, args []string) error {
@@ -189,15 +213,23 @@ func runAudit(ctx context.Context, args []string) error {
 	workflowDir := fs.String("workflows", ".github/workflows", "workflow directory to scan")
 	lockfile := fs.String("lockfile", "scg.lock", "lockfile path")
 	jsonOut := fs.Bool("json", false, "output results as JSON")
+	timeout := fs.String("timeout", "", "overall time limit, e.g. 90s or 5m (0 disables)")
 	verbose := fs.Bool("verbose", false, "show detailed progress")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 
+	limit, err := parseTimeout(*timeout)
+	if err != nil {
+		return err
+	}
+	ctx, cancel := withCommandDeadline(ctx, limit)
+	defer cancel()
+
 	logger := makeLogger(*verbose)
 	resolvers := buildResolvers()
 
-	err := doAudit(ctx, logger, *workflowDir, *lockfile, resolvers)
+	err = classifyDeadline(ctx, doAudit(ctx, logger, *workflowDir, *lockfile, resolvers), limit)
 	if *jsonOut {
 		result := &JSONResult{Command: "audit", Status: "ok", ExitCode: 0}
 		if err != nil {
@@ -244,6 +276,7 @@ Flags (all commands):
   --json                Output results as JSON (machine-readable)
   --lockfile PATH       Lockfile path (default: scg.lock)
   --sarif PATH          Write findings as SARIF (check only, for code scanning)
+  --timeout DURATION    Overall time limit, e.g. 90s or 5m (default 5m, 0 disables)
   --workflows DIR       Workflow directory (default: .github/workflows)
 
 Environment:

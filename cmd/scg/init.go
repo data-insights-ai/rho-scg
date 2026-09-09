@@ -156,9 +156,16 @@ func discoverWorkflows(dir string) ([]string, error) {
 			continue
 		}
 		name := e.Name()
-		if strings.HasSuffix(name, ".yml") || strings.HasSuffix(name, ".yaml") {
-			paths = append(paths, filepath.Join(dir, name))
+		if !strings.HasSuffix(name, ".yml") && !strings.HasSuffix(name, ".yaml") {
+			continue
 		}
+		full := filepath.Join(dir, name)
+		// Skip anything that is not a regular file here, so a named pipe or
+		// device node never reaches os.Open at all.
+		if !isRegularFile(full) {
+			continue
+		}
+		paths = append(paths, full)
 	}
 
 	if len(paths) == 0 {
@@ -173,9 +180,9 @@ func discoverWorkflows(dir string) ([]string, error) {
 func parseWorkflows(p parser.Parser, paths []string) ([]*parser.WorkflowFile, error) {
 	var workflows []*parser.WorkflowFile
 	for _, path := range paths {
-		content, err := os.ReadFile(path)
+		content, err := readSourceFile(path)
 		if err != nil {
-			return nil, fmt.Errorf("read %s: %w", path, err)
+			return nil, err
 		}
 		wf, err := p.Parse(path, content)
 		if err != nil {
@@ -304,17 +311,24 @@ func discoverLockfiles(repoRoot string) []string {
 			continue
 		}
 		name := e.Name()
-		switch {
-		case name == "package-lock.json" || name == "pnpm-lock.yaml":
-			paths = append(paths, filepath.Join(repoRoot, name))
-		case name == "requirements.txt" ||
-			(strings.HasPrefix(name, "requirements-") && strings.HasSuffix(name, ".txt")):
-			paths = append(paths, filepath.Join(repoRoot, name))
-		case strings.EqualFold(name, "dockerfile") ||
-			strings.HasSuffix(strings.ToLower(name), ".dockerfile") ||
-			strings.HasPrefix(strings.ToLower(name), "dockerfile."):
-			paths = append(paths, filepath.Join(repoRoot, name))
+		lower := strings.ToLower(name)
+		isLockfile := name == "package-lock.json" || name == "pnpm-lock.yaml" ||
+			name == "requirements.txt" ||
+			(strings.HasPrefix(name, "requirements-") && strings.HasSuffix(name, ".txt")) ||
+			lower == "dockerfile" ||
+			strings.HasSuffix(lower, ".dockerfile") ||
+			strings.HasPrefix(lower, "dockerfile.")
+		if !isLockfile {
+			continue
 		}
+		// e.IsDir() is false for a named pipe or device node, so the type has
+		// to be checked explicitly: reading either one hangs or exhausts
+		// memory, and a contributor chooses what lands in the repository root.
+		full := filepath.Join(repoRoot, name)
+		if !isRegularFile(full) {
+			continue
+		}
+		paths = append(paths, full)
 	}
 
 	sort.Strings(paths)
@@ -325,9 +339,9 @@ func discoverLockfiles(repoRoot string) []string {
 func parseWithMultiParser(parsers []parser.Parser, paths []string) ([]*parser.WorkflowFile, error) {
 	var results []*parser.WorkflowFile
 	for _, path := range paths {
-		content, err := os.ReadFile(path)
+		content, err := readSourceFile(path)
 		if err != nil {
-			return nil, fmt.Errorf("read %s: %w", path, err)
+			return nil, err
 		}
 
 		var matched parser.Parser
