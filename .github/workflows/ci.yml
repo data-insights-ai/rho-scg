@@ -39,6 +39,38 @@ jobs:
       - name: coverage gate
         run: make cover-gate
 
+  # Dogfood: run SCG against this repository's own lockfile.
+  #
+  # The committed scg.lock was signed by a discarded ephemeral key and would
+  # have failed verification for some time, and nothing here would have said
+  # so. Verifying our own supply chain is the cheapest possible test that the
+  # product actually works end to end.
+  #
+  # Runs on main and on a schedule rather than on every pull request: the
+  # anonymous tier is 20 requests an hour per IP, and GitHub-hosted runners
+  # share address space, so a busy PR queue would rate-limit itself. Forks
+  # have no API key and are skipped rather than failing.
+  dogfood:
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.event_name != 'pull_request'
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+
+      - name: setup-go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+
+      - name: build
+        run: make build
+
+      - name: verify our own lockfile
+        env:
+          SCG_API_KEY: ${{ secrets.SCG_API_KEY }}
+        run: ./scg check --verbose
+
   security:
     runs-on: ubuntu-latest
     needs: test
