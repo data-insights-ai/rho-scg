@@ -1,0 +1,31 @@
+version: "2"
+
+linters:
+  enable:
+    - errcheck      # the house rule is that every error return is handled
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - bodyclose     # an undrained response body leaks a connection per request
+    - errorlint     # errors.Is/As instead of == and type assertions
+    - noctx         # every outbound request must carry a context
+
+  settings:
+    errcheck:
+      check-type-assertions: true
+
+  exclusions:
+    rules:
+      # Test servers write canned responses; a failed write there is the test
+      # harness's problem, not a defect worth failing the build over.
+      #
+      # noctx and bodyclose are likewise scoped out of tests: an httptest
+      # request without a context, or a response left for the test server's
+      # own teardown to reap, is normal test-harness shape rather than the
+      # connection leak these linters exist to catch in production paths.
+      - path: _test\.go
+        linters:
+          - errcheck
+          - noctx
+          - bodyclose

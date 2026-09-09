@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"regexp"
 
 	"github.com/data-insights-ai/rho-scg/internal/config"
 	"github.com/data-insights-ai/rho-scg/manifest"
@@ -82,18 +81,19 @@ func doAudit(ctx context.Context, logger *slog.Logger, workflowDir, lockfilePath
 				continue
 			}
 
+			compiled, err := compileForbidden(profile.ForbiddenSecrets)
+			if err != nil {
+				return operational("profile for %s: %w", baseRef, err)
+			}
+
 			for _, secret := range envSecrets {
-				for _, fp := range profile.ForbiddenSecrets {
-					re, err := regexp.Compile(fp.Pattern)
-					if err != nil {
-						continue
-					}
+				for i, re := range compiled {
 					if re.MatchString(secret) {
 						violations = append(violations, auditViolation{
 							StepName: tool.StepName,
 							Secret:   secret,
-							Pattern:  fp.Pattern,
-							Reason:   fp.Reason,
+							Pattern:  profile.ForbiddenSecrets[i].Pattern,
+							Reason:   profile.ForbiddenSecrets[i].Reason,
 						})
 						break
 					}
@@ -120,29 +120,29 @@ func printAuditReport(
 	driftResults []manifest.DriftResult,
 	violations []auditViolation,
 ) {
-	fmt.Fprintf(w, "\n  %s\n\n", bold("SCG Audit Report"))
+	outf(w, "\n  %s\n\n", bold("SCG Audit Report"))
 
 	totalSteps := 0
 	for _, wf := range workflows {
 		totalSteps += len(wf.Steps)
 	}
-	fmt.Fprintf(w, "  Pipelines: %d\n", len(workflows))
-	fmt.Fprintf(w, "  Steps:     %d\n", totalSteps)
-	fmt.Fprintf(w, "  Tools:     %d\n\n", len(resolved))
+	outf(w, "  Pipelines: %d\n", len(workflows))
+	outf(w, "  Steps:     %d\n", totalSteps)
+	outf(w, "  Tools:     %d\n\n", len(resolved))
 
-	fmt.Fprintf(w, "  %s\n", bold("Dependency Integrity"))
+	outf(w, "  %s\n", bold("Dependency Integrity"))
 	if len(driftResults) == 0 {
 		printSuccess(w, "No drift detected.")
 	} else {
 		for _, d := range driftResults {
 			printFailure(w, "CRITICAL: %s", d.Reference)
-			fmt.Fprintf(w, "      Locked: %s\n", dim(d.LockedHash))
-			fmt.Fprintf(w, "      Live:   %s\n", dim(d.LiveHash))
+			outf(w, "      Locked: %s\n", dim(d.LockedHash))
+			outf(w, "      Live:   %s\n", dim(d.LiveHash))
 		}
 	}
-	fmt.Fprintln(w)
+	outln(w)
 
-	fmt.Fprintf(w, "  %s\n", bold("Secret Exposure"))
+	outf(w, "  %s\n", bold("Secret Exposure"))
 	if len(violations) == 0 {
 		printSuccess(w, "No secret violations found.")
 	} else {
@@ -150,12 +150,12 @@ func printAuditReport(
 			printFailure(w, "Step %q: %s — %s", v.StepName, v.Secret, v.Reason)
 		}
 	}
-	fmt.Fprintln(w)
+	outln(w)
 
 	issues := len(driftResults) + len(violations)
 	if issues == 0 {
-		fmt.Fprintf(w, "  Result: %s\n\n", green(bold("PASS")))
+		outf(w, "  Result: %s\n\n", green(bold("PASS")))
 	} else {
-		fmt.Fprintf(w, "  Result: %s (%d issue(s))\n\n", red(bold("FAIL")), issues)
+		outf(w, "  Result: %s (%d issue(s))\n\n", red(bold("FAIL")), issues)
 	}
 }

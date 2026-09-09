@@ -131,8 +131,11 @@ func TestDiscoverWorkflows(t *testing.T) {
 		t.Fatal("expected at least one workflow file")
 	}
 	for _, p := range paths {
-		if !filepath.IsAbs(p) && !filepath.IsLocal(p) {
-			// just verify they look like file paths
+		// A discovered path must actually resolve to a readable file — that is
+		// the property callers depend on, and it holds whether the scan root
+		// was given as an absolute or a relative path.
+		if _, err := os.Stat(p); err != nil {
+			t.Errorf("discovered path %q is not readable: %v", p, err)
 		}
 		ext := filepath.Ext(p)
 		if ext != ".yml" && ext != ".yaml" {
@@ -277,7 +280,7 @@ func TestDoInit_EndToEnd(t *testing.T) {
 	ctx := context.Background()
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
-	err := doInit(ctx, logger, testdataDir(), lockfilePath, resolvers)
+	err := doInit(ctx, logger, testdataDir(), lockfilePath, resolvers, testSigner(t))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -419,7 +422,7 @@ func TestDoInit_WithLockfiles(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
 	workflowDir := filepath.Join(testdataMultiDir(), ".github", "workflows")
-	err := doInit(ctx, logger, workflowDir, lockfilePath, resolvers)
+	err := doInit(ctx, logger, workflowDir, lockfilePath, resolvers, testSigner(t))
 	if err != nil {
 		t.Fatal(err)
 	}

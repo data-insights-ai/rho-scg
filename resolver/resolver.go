@@ -48,3 +48,17 @@ type Resolver interface {
 	// Ecosystem returns which ecosystem this resolver handles.
 	Ecosystem() Ecosystem
 }
+
+// FreshnessReporter is implemented by resolvers that can say how current their
+// answer is.
+//
+// A digest is only evidence if something re-checked it recently. When the
+// lockfile and the check both read from the same unrefreshed record, "no drift
+// detected" is a tautology rather than a verification — which is exactly how
+// stale platform data can produce a green check over references that have in
+// fact moved. A resolver that knows its data is old must be able to say so.
+type FreshnessReporter interface {
+	// Freshness reports whether the last answer for reference was older than
+	// the acceptable budget, and how old it was.
+	Freshness(reference string) (stale bool, age time.Duration)
+}

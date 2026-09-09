@@ -54,8 +54,18 @@ func main() {
 	}
 
 	if err != nil {
+		code := exitCodeFor(err)
 		fmt.Fprintf(os.Stderr, "error: %s\n", err)
-		os.Exit(1)
+		if code == ExitOperational {
+			// Say plainly that this is not a finding. A red pipeline that looks
+			// like a detection, but is really an SCG outage, costs a team an
+			// incident response for nothing.
+			fmt.Fprintln(os.Stderr,
+				"\nThis is an SCG operational failure, not a supply chain finding. "+
+					"Nothing was detected about your dependencies. Retry, or check "+
+					"https://api.scg.data-insights.ai/v1/status")
+		}
+		os.Exit(code)
 	}
 }
 
@@ -74,12 +84,14 @@ func runInit(ctx context.Context, args []string) error {
 	lockfile := fs.String("lockfile", "scg.lock", "output lockfile path")
 	jsonOut := fs.Bool("json", false, "output results as JSON")
 	verbose := fs.Bool("verbose", false, "show detailed resolution progress")
-	fs.Parse(args)
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
 
 	logger := makeLogger(*verbose)
 	resolvers := buildResolvers()
 
-	err := doInit(ctx, logger, *workflowDir, *lockfile, resolvers)
+	err := doInit(ctx, logger, *workflowDir, *lockfile, resolvers, newPlatformSigner())
 	if *jsonOut {
 		result := &JSONResult{Command: "init", Status: "ok", ExitCode: 0}
 		if err != nil {
@@ -100,12 +112,15 @@ func runCheck(ctx context.Context, args []string) error {
 	fs := flag.NewFlagSet("check", flag.ExitOnError)
 	lockfile := fs.String("lockfile", "scg.lock", "lockfile path")
 	jsonOut := fs.Bool("json", false, "output results as JSON")
+	sarif := fs.String("sarif", "", "write findings as SARIF to this path (for GitHub code scanning)")
 	verbose := fs.Bool("verbose", false, "show detailed resolution progress")
-	fs.Parse(args)
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
 
 	logger := makeLogger(*verbose)
 
-	err := doCheck(ctx, logger, *lockfile)
+	err := doCheck(ctx, logger, *lockfile, *sarif)
 	if *jsonOut {
 		result := &JSONResult{Command: "check", Status: "ok", ExitCode: 0}
 		if err != nil {
@@ -127,7 +142,9 @@ func runUpdate(ctx context.Context, args []string) error {
 	workflowDir := fs.String("workflows", ".github/workflows", "workflow directory to scan")
 	lockfile := fs.String("lockfile", "scg.lock", "lockfile path")
 	verbose := fs.Bool("verbose", false, "show detailed resolution progress")
-	fs.Parse(args)
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
 
 	logger := makeLogger(*verbose)
 	return doUpdate(ctx, logger, *workflowDir, *lockfile)
@@ -140,7 +157,9 @@ func runScope(ctx context.Context, args []string) error {
 	jsonOut := fs.Bool("json", false, "output results as JSON")
 	sanitize := fs.Bool("sanitize", false, "remove forbidden secrets from environment (not just report)")
 	verbose := fs.Bool("verbose", false, "show detailed progress")
-	fs.Parse(args)
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
 
 	if *stepName == "" {
 		return fmt.Errorf("--step is required")
@@ -171,7 +190,9 @@ func runAudit(ctx context.Context, args []string) error {
 	lockfile := fs.String("lockfile", "scg.lock", "lockfile path")
 	jsonOut := fs.Bool("json", false, "output results as JSON")
 	verbose := fs.Bool("verbose", false, "show detailed progress")
-	fs.Parse(args)
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
 
 	logger := makeLogger(*verbose)
 	resolvers := buildResolvers()
@@ -197,7 +218,9 @@ func runIntel(ctx context.Context, args []string) error {
 	fs := flag.NewFlagSet("intel", flag.ExitOnError)
 	limit := fs.Int("limit", 20, "number of recent events to show")
 	jsonOut := fs.Bool("json", false, "output events as JSON")
-	fs.Parse(args)
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
 	return doIntel(ctx, *limit, *jsonOut)
 }
 
@@ -209,7 +232,7 @@ Usage:
 
 Commands:
   init      Scan workflows, resolve dependencies, write scg.lock
-  check     Validate scg.lock against live state (exit 0=clean, 1=drift)
+  check     Validate scg.lock against live state
   update    Re-resolve all dependencies, update scg.lock
   scope     Audit and sanitize secrets for a specific step
   audit     Full security report (run in CI where secrets are injected)
@@ -220,6 +243,7 @@ Flags (all commands):
   --verbose             Show detailed resolution progress
   --json                Output results as JSON (machine-readable)
   --lockfile PATH       Lockfile path (default: scg.lock)
+  --sarif PATH          Write findings as SARIF (check only, for code scanning)
   --workflows DIR       Workflow directory (default: .github/workflows)
 
 Environment:
@@ -233,6 +257,12 @@ Examples:
   scg scope --step trivy-scan       # audit secrets for a step
   scg audit                         # full security report
   scg intel --limit 50              # recent drift/burst events
+
+Exit codes:
+  0   clean — everything verified
+  1   finding — drift or a secret violation. Fail the build on this.
+  2   operational — SCG could not complete the check (platform unreachable,
+      rate limited, or its data was stale). Not a finding; retry.
 
 Learn more: https://scg.data-insights.ai
 `)

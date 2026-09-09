@@ -49,13 +49,13 @@ func crossMark() string { return red("✗") }
 func warnMark() string  { return yellow("⚠") }
 
 func printSuccess(w io.Writer, format string, args ...any) {
-	fmt.Fprintf(w, "  %s %s\n", checkMark(), fmt.Sprintf(format, args...))
+	outf(w, "  %s %s\n", checkMark(), fmt.Sprintf(format, args...))
 }
 
 func printFailure(w io.Writer, format string, args ...any) {
-	fmt.Fprintf(w, "  %s %s\n", crossMark(), fmt.Sprintf(format, args...))
+	outf(w, "  %s %s\n", crossMark(), fmt.Sprintf(format, args...))
 }
 
 func printWarning(w io.Writer, format string, args ...any) {
-	fmt.Fprintf(w, "  %s %s\n", warnMark(), fmt.Sprintf(format, args...))
+	outf(w, "  %s %s\n", warnMark(), fmt.Sprintf(format, args...))
 }

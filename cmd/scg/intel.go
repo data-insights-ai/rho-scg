@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"os"
 
 	"github.com/data-insights-ai/rho-scg/internal/config"
@@ -28,11 +27,11 @@ func doIntel(ctx context.Context, limit int, jsonOut bool) error {
 	}
 
 	if len(events) == 0 {
-		fmt.Fprintln(os.Stdout, "No recent intel events.")
+		outln(os.Stdout, "No recent intel events.")
 		return nil
 	}
 	for _, e := range events {
-		fmt.Fprintf(os.Stdout, "%s  [%-8s] %-12s %s — %s\n",
+		outf(os.Stdout, "%s  [%-8s] %-12s %s — %s\n",
 			e.Timestamp.UTC().Format("2006-01-02T15:04:05Z"),
 			e.Severity, e.Type, e.Tool, e.Summary)
 	}

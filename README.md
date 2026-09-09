@@ -318,6 +318,21 @@ Zero-config by default. Optional environment variables:
 | `SCG_WORKFLOW_DIR` | `.github/workflows` | Workflow directory |
 | `SCG_LOG_LEVEL` | `info` | debug, info, warn, error |
 
+`GITHUB_TOKEN` is not read by the CLI. All resolution goes through the platform,
+which holds the registry credentials server-side; you need no GitHub token,
+Docker Hub account or registry credentials of any kind.
+
+### Exit codes
+
+| Code | Meaning |
+|---|---|
+| 0 | Clean — everything verified |
+| 1 | Finding — drift detected, or a secret violation |
+| 2 | Operational — SCG could not complete the check (platform unreachable, budget spent, or its data too old to trust) |
+
+Fail your build on 1. Retry on 2: it says nothing about your dependencies, only
+about SCG's availability.
+
 ## Supported Ecosystems
 
 | Ecosystem | Config Files | Status |

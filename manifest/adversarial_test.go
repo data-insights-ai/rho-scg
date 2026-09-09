@@ -1,6 +1,7 @@
 package manifest
 
 import (
+	"context"
 	"crypto/ed25519"
 	"crypto/rand"
 	"encoding/base64"
@@ -14,17 +15,19 @@ import (
 
 // --- Lockfile edge cases ---
 
+// An empty object used to parse into a version-0 lockfile that check would
+// then happily "verify" — zero tools, zero drift, exit 0. A lockfile with no
+// version is not a lockfile, and a security tool must say so rather than
+// report a clean run over nothing.
 func TestReadLockfile_EmptyJSON(t *testing.T) {
 	tmpDir := t.TempDir()
 	path := filepath.Join(tmpDir, "scg.lock")
-	os.WriteFile(path, []byte("{}"), 0o644)
-
-	lf, err := ReadLockfile(path)
-	if err != nil {
+	if err := os.WriteFile(path, []byte("{}"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if lf.Version != 0 {
-		t.Errorf("version = %d, want 0 for empty JSON", lf.Version)
+
+	if _, err := ReadLockfile(path); err == nil {
+		t.Fatal("an empty JSON object must be rejected, not read as a valid lockfile")
 	}
 }
 
@@ -180,7 +183,7 @@ func TestSign_DeterministicContent(t *testing.T) {
 
 func TestDetectDrift_EmptyLockfile(t *testing.T) {
 	lf := &Lockfile{}
-	results, err := DetectDrift(nil, lf, nil)
+	results, err := DetectDrift(context.TODO(), lf, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -205,7 +208,7 @@ func TestDetectDrift_EmptyHash(t *testing.T) {
 		resolver.EcoGitHubAction: res,
 	}
 
-	results, err := DetectDrift(nil, lf, resolvers)
+	results, err := DetectDrift(context.TODO(), lf, resolvers)
 	if err != nil {
 		t.Fatal(err)
 	}

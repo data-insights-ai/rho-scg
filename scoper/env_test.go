@@ -32,7 +32,10 @@ func TestLooksLikeSecret(t *testing.T) {
 
 func TestMatchSecrets(t *testing.T) {
 	secrets := []string{"PYPI_API_TOKEN", "GITHUB_TOKEN", "AWS_SECRET_KEY", "NPM_TOKEN"}
-	patterns := []string{`PYPI.*`, `AWS_SECRET.*`}
+	patterns, err := CompileSecretPatterns([]string{`PYPI.*`, `AWS_SECRET.*`})
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	matched := MatchSecrets(secrets, patterns)
 	if len(matched) != 2 {
@@ -47,14 +50,12 @@ func TestMatchSecrets(t *testing.T) {
 	}
 }
 
+// An invalid pattern used to be skipped silently, which meant the secret it
+// forbade was allowed through. Compilation now fails loudly instead: a
+// least-privilege control that fails open on a typo is not a control.
 func TestMatchSecrets_InvalidRegex(t *testing.T) {
-	secrets := []string{"FOO_TOKEN"}
-	patterns := []string{"[invalid"} // bad regex
-
-	// Should not panic, just skip invalid patterns.
-	matched := MatchSecrets(secrets, patterns)
-	if len(matched) != 0 {
-		t.Errorf("expected no matches for invalid regex, got %d", len(matched))
+	if _, err := CompileSecretPatterns([]string{"[invalid"}); err == nil {
+		t.Fatal("an invalid forbidden-secret pattern must be reported, not skipped")
 	}
 }
 

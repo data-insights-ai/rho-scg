@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"os"
 )
@@ -11,7 +10,7 @@ import (
 func doUpdate(ctx context.Context, logger *slog.Logger, workflowDir, lockfilePath string) error {
 	resolvers := buildResolvers()
 
-	fmt.Fprintf(os.Stdout, "\n  Updating %s ...\n", lockfilePath)
+	outf(os.Stdout, "\n  Updating %s ...\n", lockfilePath)
 
-	return doInit(ctx, logger, workflowDir, lockfilePath, resolvers)
+	return doInit(ctx, logger, workflowDir, lockfilePath, resolvers, newPlatformSigner())
 }
