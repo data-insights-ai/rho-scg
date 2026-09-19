@@ -41,6 +41,10 @@ func main() {
 		err = runAudit(ctx, os.Args[2:])
 	case "intel":
 		err = runIntel(ctx, os.Args[2:])
+	case "login":
+		err = runLogin(ctx, os.Args[2:])
+	case "logout":
+		err = runLogout(os.Args[2:])
 	case "version":
 		fmt.Printf("scg %s\n", version)
 		return
@@ -269,6 +273,8 @@ Commands:
   scope     Audit and sanitize secrets for a specific step
   audit     Full security report (run in CI where secrets are injected)
   intel     Show recent threat-intel events (drift, bursts) from the platform
+  login     Sign this machine in to your SCG organization (opens the browser)
+  logout    Forget the key stored by login
   version   Print version information
 
 Flags (all commands):
@@ -280,7 +286,8 @@ Flags (all commands):
   --workflows DIR       Workflow directory (default: .github/workflows)
 
 Environment:
-  SCG_API_KEY        SCG Platform API key (higher rate limits, optional)
+  SCG_API_KEY        SCG Platform API key (CI; overrides the key stored by login)
+  SCG_CONFIG_DIR     Where login stores credentials (default: the OS config dir, scg/)
   SCG_PLATFORM_URL   Platform URL (default: https://api.scg.data-insights.ai)
 
 Examples:
