@@ -1,0 +1,31 @@
+# Dependabot keeps the Go module current. The manifests under
+# internal/testutil/testdata_multi are test fixtures: deliberately old,
+# pinned versions the scanner must recognise. They are declared here so
+# Dependabot neither opens version PRs for them nor runs security updates
+# against them (a security update job against a fixture directory without
+# a package.json fails outright).
+version: 2
+updates:
+  - package-ecosystem: gomod
+    directory: "/"
+    schedule:
+      interval: weekly
+    groups:
+      go-modules:
+        patterns: ["*"]
+
+  - package-ecosystem: npm
+    directory: "/internal/testutil/testdata_multi"
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 0
+    ignore:
+      - dependency-name: "*"
+
+  - package-ecosystem: pip
+    directory: "/internal/testutil/testdata_multi"
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 0
+    ignore:
+      - dependency-name: "*"
