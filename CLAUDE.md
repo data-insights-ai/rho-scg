@@ -21,7 +21,7 @@ make clean          # remove binary + coverage
 # CLI usage
 ./scg init                        # scan workflows, resolve deps, write scg.lock
 ./scg init --workflows DIR        # custom workflow directory
-./scg check                       # validate scg.lock against live (exit 0|1)
+./scg check                       # validate scg.lock against live (exit 0|1|2)
 ./scg check --lockfile PATH       # custom lockfile path
 ./scg update                      # re-resolve all, update scg.lock
 ./scg scope --step NAME           # audit + sanitize env for step
@@ -144,7 +144,8 @@ internal/testutil  Test helpers
 
 ## Current State (v0.1.32)
 
-- All 6 commands working: `init`, `check`, `update`, `scope`, `audit`, `intel`
+- Commands: `init`, `check`, `update`, `scope`, `audit`, `intel`, `login`, `logout`
+- The platform client reports the build in its User-Agent (`platform.Version` is set from `main.version`)
 - Signatures anchored to the pinned platform key; no local fallback
 - `check` deduplicates references, resolves concurrently (max 8), and reports
   stale platform data as unverified rather than clean

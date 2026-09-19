@@ -1,74 +1,51 @@
 # Signing Model
 
-## Current: Ephemeral Ed25519
+## Platform signing with a pinned key
 
-SCG currently signs lockfiles with an ephemeral ed25519 keypair generated at `scg init` time. The private key exists only in memory and is discarded after signing. The public key is embedded in the lockfile.
+`scg init` and `scg update` send the canonical lockfile bytes to the platform
+(`POST /v1/sign`); the platform signs them with its persistent ed25519 key and
+returns algorithm `ed25519-platform`, the signature and its public key.
+`scg check` verifies the signature against the platform public key compiled
+into the CLI (`manifest.PlatformPublicKey`), never against the key inside the
+file. A lockfile that is unsigned, signed with another algorithm, or signed by
+any other key is rejected; there is no bypass flag and no local signing
+fallback (if the platform cannot sign, `scg init` fails).
 
 ### What this proves
-- **Tamper detection**: If anyone modifies the lockfile after signing, the signature breaks.
-- `scg check` verifies the signature is valid against the embedded public key.
+- **Tamper detection**: any change to the lockfile after signing breaks the
+  signature.
+- **Origin**: the signature could only have been produced by the SCG platform.
+  An attacker cannot mint a passing lockfile with a key of their own.
 
-### What this does NOT prove
-- **Identity**: You cannot verify WHO signed the lockfile. Each `scg init` run generates a new keypair. An attacker could generate their own keypair, sign a malicious lockfile, and it would pass verification.
-- **Chain of trust**: There's no connection between lockfile version N and version N+1. A completely different key signs each one.
+### What this does not prove
+- **Who asked for the signature**: the platform signs for any caller. The
+  identity layer is git: commit signing and branch protection on the repository
+  that holds `scg.lock`.
 
-### Why this is acceptable for now
-The lockfile is committed to git. Git's own integrity (commit signing, branch protection) provides the identity layer. If you trust your git history, you trust the lockfile. The ed25519 signature prevents post-commit tampering (e.g., a compromised CI cache serving a modified lockfile).
-
-## Planned: OIDC + JWKS (Platform Tier)
-
-The SCG Platform will add identity-bound signing:
-
-```
-1. CI provides OIDC token (GitHub Actions, GitLab CI, etc.)
-2. SCG Platform verifies the JWT signature via JWKS from the issuer
-3. Platform validates claims: issuer, subject, expiration, not-before
-4. Platform signs the lockfile with its own key (not ephemeral)
-5. Lockfile contains: platform signature + verified OIDC identity
-6. Verification checks: platform signature + OIDC identity matches policy
-```
-
-This proves both integrity AND identity. The platform's signing key is the trust anchor, not an ephemeral key.
-
-### Why not do OIDC in the CLI?
-
-We tried it. It was security theater. The CLI can extract OIDC claims from a JWT token, but without JWKS verification, it can't prove the token is genuine. An attacker could forge an OIDC token with arbitrary claims, and the CLI would accept it.
-
-Real OIDC verification requires:
-1. Fetching the JWKS keyset from the issuer's well-known endpoint
-2. Cryptographically verifying the JWT signature against the keyset
-3. Checking token expiration and audience
-
-This is networking infrastructure (HTTP client, key caching, retry logic) that belongs in the platform, not a CLI tool that should work offline.
-
-### VerifyOIDCClaims (available now)
-
-The `manifest.VerifyOIDCClaims()` function validates the structural and temporal claims of an OIDC JWT:
-- Checks issuer is present
-- Checks expiration (`exp`) against current time
-- Checks not-before (`nbf`) with 30-second skew tolerance
-
-This is used by the platform tier for claim validation after JWKS signature verification.
-
-## Signature Format
+## Signature format
 
 ```json
 {
   "signature": {
-    "algorithm": "ed25519",
+    "algorithm": "ed25519-platform",
     "value": "base64-encoded-ed25519-signature",
-    "public_key": "base64-encoded-ephemeral-public-key"
+    "public_key": "base64-encoded-platform-public-key"
   }
 }
 ```
 
-The signature covers the entire lockfile content with the `signature` field set to null. Any modification to any field invalidates the signature.
+The signature covers the entire lockfile content with the `signature` field set
+to null.
 
 ## Verification
 
 ```bash
-# Signatures are mandatory by default
-scg check                    # fails if unsigned
-
-
+scg check          # fails on a missing, foreign or invalid signature
 ```
+
+## Identity-bound signing
+
+Binding a signature to a CI identity (OIDC token verified against the issuer's
+JWKS, then signed by the platform) is a design note, not a shipped feature or a
+plan tier. It belongs in the platform, which has the network access to verify
+tokens; a CLI-only check of JWT claims proves nothing and was removed.

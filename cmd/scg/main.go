@@ -14,11 +14,16 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+
+	"github.com/data-insights-ai/rho-scg/platform"
 )
 
 var version = "dev"
 
 func main() {
+	// The platform client identifies the build in its User-Agent; without
+	// this every released binary would call itself scg/dev.
+	platform.Version = version
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
 
@@ -108,12 +113,16 @@ func runInit(ctx context.Context, args []string) error {
 		result := &JSONResult{Command: "init", Status: "ok", ExitCode: 0}
 		if err != nil {
 			result.Status = "error"
-			result.ExitCode = 1
+			result.ExitCode = exitCodeFor(err)
+			if result.ExitCode == ExitOperational {
+				// An outage is not a finding, in JSON as on the terminal.
+				result.Status = "error"
+			}
 			result.Error = err.Error()
 		}
 		writeJSON(result)
 		if err != nil {
-			os.Exit(1)
+			os.Exit(result.ExitCode)
 		}
 		return nil
 	}
@@ -145,12 +154,16 @@ func runCheck(ctx context.Context, args []string) error {
 		result := &JSONResult{Command: "check", Status: "ok", ExitCode: 0}
 		if err != nil {
 			result.Status = "drift_detected"
-			result.ExitCode = 1
+			result.ExitCode = exitCodeFor(err)
+			if result.ExitCode == ExitOperational {
+				// An outage is not a finding, in JSON as on the terminal.
+				result.Status = "error"
+			}
 			result.Error = err.Error()
 		}
 		writeJSON(result)
 		if err != nil {
-			os.Exit(1)
+			os.Exit(result.ExitCode)
 		}
 		return nil
 	}
@@ -200,12 +213,16 @@ func runScope(ctx context.Context, args []string) error {
 		result := &JSONResult{Command: "scope", Status: "ok", ExitCode: 0}
 		if err != nil {
 			result.Status = "violations_found"
-			result.ExitCode = 1
+			result.ExitCode = exitCodeFor(err)
+			if result.ExitCode == ExitOperational {
+				// An outage is not a finding, in JSON as on the terminal.
+				result.Status = "error"
+			}
 			result.Error = err.Error()
 		}
 		writeJSON(result)
 		if err != nil {
-			os.Exit(1)
+			os.Exit(result.ExitCode)
 		}
 		return nil
 	}
@@ -238,12 +255,16 @@ func runAudit(ctx context.Context, args []string) error {
 		result := &JSONResult{Command: "audit", Status: "ok", ExitCode: 0}
 		if err != nil {
 			result.Status = "issues_found"
-			result.ExitCode = 1
+			result.ExitCode = exitCodeFor(err)
+			if result.ExitCode == ExitOperational {
+				// An outage is not a finding, in JSON as on the terminal.
+				result.Status = "error"
+			}
 			result.Error = err.Error()
 		}
 		writeJSON(result)
 		if err != nil {
-			os.Exit(1)
+			os.Exit(result.ExitCode)
 		}
 		return nil
 	}

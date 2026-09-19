@@ -18,7 +18,7 @@ curl -sSL https://scg.data-insights.ai/install.sh | sh
 
 # From source
 git clone https://github.com/data-insights-ai/rho-scg.git
-cd supply-chain-guardian && make build
+cd rho-scg && make build
 ```
 
 ### Lock your dependencies
@@ -299,12 +299,17 @@ The SCG Platform at `api.scg.data-insights.ai` continuously crawls and pre-compu
 
 | Command | Purpose | Exit Code |
 |---|---|---|
-| `scg init` | Scan workflows, resolve all dependencies, write `scg.lock` | 0 = success |
-| `scg check` | Validate `scg.lock` against live state | 0 = clean, 1 = drift |
-| `scg update` | Re-resolve all dependencies, update `scg.lock` | 0 = success |
-| `scg scope --step NAME` | Audit secrets for a step (add `--sanitize` to remove them) | 0 = clean, 1 = violations |
-| `scg audit` | Full security report (drift + secret exposure) | 0 = clean, 1 = issues |
+| `scg init` | Scan workflows, resolve all dependencies, write `scg.lock` | 0 = success, 2 = operational |
+| `scg check` | Validate `scg.lock` against live state | 0 = clean, 1 = drift, 2 = operational |
+| `scg update` | Re-resolve all dependencies, update `scg.lock` | 0 = success, 2 = operational |
+| `scg scope --step NAME` | Audit secrets for a step (add `--sanitize` to remove them) | 0 = clean, 1 = violations, 2 = operational |
+| `scg audit` | Full security report (drift + secret exposure) | 0 = clean, 1 = issues, 2 = operational |
+| `scg intel` | Recent drift and burst events from the public intel feed | 0 |
+| `scg login` / `scg logout` | Sign this machine in to your organization by browser (stores a key, owner-only), or forget it | 0 |
 | `scg version` | Print version | 0 |
+
+`--json` on `init`, `check`, `scope` and `audit` prints a structured result with
+the same exit code the terminal run would have.
 
 ## Configuration
 
@@ -312,7 +317,7 @@ Zero-config by default. Optional environment variables:
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `SCG_API_KEY` | (none) | SCG Platform subscription key (higher rate limits) |
+| `SCG_API_KEY` | (none) | API key of your organization; without it `scg login` credentials are used, else anonymous (20 requests/hour) |
 | `SCG_PLATFORM_URL` | `https://api.scg.data-insights.ai` | Platform API endpoint |
 | `SCG_LOCKFILE` | `scg.lock` | Lockfile path |
 | `SCG_WORKFLOW_DIR` | `.github/workflows` | Workflow directory |
@@ -354,7 +359,7 @@ scg check
 
 # Higher rate limits with an API key
 export SCG_API_KEY=scg_live_xxx
-scg check  # 5,000 req/hr (Pro)
+scg check  # your organization's limit: 100/hr Free, 5,000/hr Pro, 50,000/hr Enterprise, shared by all its keys
 ```
 
 ---

@@ -50,7 +50,7 @@ The CLI doesn't run graph queries — it calls `GET /v1/resolve` and compares th
 Users interact with:
 - `scg.lock` — a human-readable JSON lockfile (committed to git)
 - CLI commands — `scg init`, `scg check`, `scg scope`
-- Exit codes — 0 (clean) or 1 (drift/violations)
+- Exit codes — 0 (clean), 1 (drift/violations), 2 (SCG could not complete; not a finding)
 
 ## Package Structure
 
@@ -92,14 +92,14 @@ internal/config/   Configuration from environment
 
 ```
 1. Read scg.lock
-2. Verify signature (platform or local ed25519)
+2. Verify the platform signature against the key compiled into the CLI
 3. For each ToolEntry in lockfile:
    a. Re-resolve reference via platform /v1/resolve
    b. Compare live digest vs. locked digest
    c. If different: CRITICAL drift (possible tag hijack)
-4. If ANY tool cannot be verified: exit 1 (fail-closed)
+4. A tool the platform cannot answer for, or whose digest is past its freshness budget, is reported unverified
 5. Report results
-6. Exit 0 (clean) or 1 (drift)
+6. Exit 0 (clean), 1 (drift) or 2 (nothing could be verified: an SCG failure, not a finding)
 ```
 
 ### `scg scope`
@@ -119,13 +119,10 @@ internal/config/   Configuration from environment
 
 The platform signs lockfiles with a persistent ed25519 key. Verification via `GET /v1/pubkey`.
 
-### Local Ed25519 (fallback)
-
-Ephemeral keypair generated per `scg init`. Public key embedded in lockfile.
-
-### OIDC Keyless (planned, platform tier)
-
-Identity-bound signing via CI provider OIDC tokens + JWKS verification.
+There is no local fallback: if the platform cannot sign, `scg init` fails. The
+key inside the lockfile is informational; verification uses the platform key
+compiled into the CLI (`manifest.PlatformPublicKey`), so a lockfile signed by
+any other key is rejected.
 
 ## Supported Ecosystems
 

@@ -4,7 +4,7 @@
 
 The `scg.lock` file records the immutable content digests of all CI/CD dependencies. It is:
 - **JSON** — human-readable, git-diffable
-- **Signed** — tamper-evident via ed25519 or OIDC keyless signatures
+- **Signed** — by the SCG platform with ed25519; the CLI verifies against the platform key compiled into it
 - **Committed** — checked into version control as the source of truth
 
 ## Format
@@ -115,11 +115,10 @@ The `scg.lock` file records the immutable content digests of all CI/CD dependenc
 
 | Field | Type | Required | Description |
 |---|---|---|---|
-| `algorithm` | string | Yes | `ed25519`, `ed25519-platform`, or `oidc+ed25519` (planned) |
+| `algorithm` | string | Yes | `ed25519-platform` (the only algorithm `scg check` accepts) |
 | `value` | string | Yes | Base64-encoded signature |
-| `public_key` | string | For ed25519 | Base64-encoded public key |
-| `issuer` | string | For OIDC | OIDC issuer URL |
-| `subject` | string | For OIDC | OIDC subject claim |
+| `public_key` | string | Yes | Base64-encoded platform public key, informational: verification does not use it |
+| `issuer`, `subject` | string | No | Reserved; not set by the platform today |
 
 ## Signing
 
@@ -130,7 +129,7 @@ The signature covers the entire lockfile content with the `signature` field set 
 1. Parse the lockfile
 2. Remove the `signature` field
 3. Marshal the remaining content to JSON (canonical form)
-4. Verify the signature against the embedded public key (ed25519) or OIDC JWKS (keyless)
+4. Verify the signature against the platform public key compiled into the CLI (`manifest.PlatformPublicKey`); the key inside the file is never the trust anchor, so a lockfile signed by any other key fails
 
 ## Version History
 

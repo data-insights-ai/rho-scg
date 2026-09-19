@@ -67,7 +67,7 @@ jobs:
           scg check
 ```
 
-If any dependency has drifted since you locked it, `scg check` exits with code 1 and your build halts.
+If any dependency has drifted since you locked it, `scg check` exits with code 1 and your build halts. Exit code 2 means SCG could not complete the check (platform unreachable or its data too old to trust): retry, it says nothing about your dependencies.
 
 ### 4. Scope secrets (optional but recommended)
 
@@ -116,4 +116,4 @@ The tool hasn't been indexed by the platform yet. The crawler indexes tools with
 Run `scg init` to regenerate and sign the lockfile.
 
 ### Rate limiting
-Anonymous access: 20 requests/hour. Set `SCG_API_KEY` for higher limits.
+Anonymous access: 20 requests/hour. Run `scg login` or set `SCG_API_KEY` to use your organization's limit (100/hour on Free, 5,000 on Pro, 50,000 on Enterprise, shared by all keys of the organization).

@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `dogfood` workflow: a scheduled canary that verifies our lockfile against the
+  live platform every six hours and fails on any non-zero exit. CI on pushes
+  now treats exit 2 as a warning, so platform state cannot block CLI merges.
+
+### Changed
+
+- `--json` reports the same exit code as the terminal run: an operational
+  failure exits 2 with status `error`, a finding exits 1.
+- The platform client sends the build version in its User-Agent (it said
+  `scg/dev` in every release).
+- Docs: command table lists `intel`, `login`, `logout`; exit code 2 documented
+  everywhere; the signing model describes the pinned platform key (the CLI
+  never verifies against the key inside the file); the "platform tier" that no
+  plan defines is gone.
+
+### Removed
+
+- `platform.Client.Check` and the `CheckResponse`/`DriftEntry`/`HistoryEntry`
+  types: the CLI verifies locally against `/v1/resolve` by design and nothing
+  called them.
+- `manifest.VerifyOIDCClaims`: JWT claim parsing without signature
+  verification proves nothing and was wired to nothing.
+- `.goreleaser.yml`: releases are built by `release.yml`; the file was never
+  used.
+
 ### BREAKING
 
 - **Lockfiles signed before this release no longer verify.** `scg check` now

@@ -29,14 +29,13 @@ Untrusted                          Trusted
 Package registries (npm, PyPI)     scg.lock (signed, committed)
 GitHub Actions marketplace         SCG Platform (pre-verified data)
 Docker Hub                         SCG binary
-CI environment variables           Ed25519/OIDC signatures
+CI environment variables           Platform signature (pinned key)
 ```
 
 ### What SCG Trusts
 - The `scg.lock` file (after signature verification)
 - The SCG Platform API
 - The initial resolution performed during `scg init` (human-reviewed before commit)
-- The OIDC identity provider (for keyless signing)
 
 ### What SCG Does NOT Trust
 - Mutable references (tags, branches, version strings)
@@ -46,17 +45,11 @@ CI environment variables           Ed25519/OIDC signatures
 
 ## Signing Security
 
-### Ed25519 Keypair
-- Keys generated via Go's `crypto/ed25519` (uses `crypto/rand` for key generation)
-- Private keys must be stored securely (not in the repository)
-- Public keys can be committed to the repository for verification
-- Signature covers the entire lockfile content (excluding the signature field itself)
-
-### OIDC Keyless (Planned)
-- Ephemeral keys generated per signing operation
-- Identity proven via OIDC token from CI provider
-- No long-lived private keys to compromise
-- Verification via JWKS endpoint of the identity provider
+### Platform signature
+- The platform signs every lockfile with its persistent ed25519 key (`POST /v1/sign`); the CLI holds no signing key
+- The CLI verifies against the platform public key compiled into the binary, in constant time; the key inside the lockfile is informational
+- The signature covers the entire lockfile content (excluding the signature field itself)
+- An unsigned lockfile, or one signed by any other key, is an error; there is no bypass flag
 
 ## Input Validation
 

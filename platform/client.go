@@ -158,19 +158,6 @@ func (c *Client) Sign(ctx context.Context, data []byte) (*SignResponse, error) {
 	return &resp, nil
 }
 
-// Check uploads a lockfile and returns drift results from the platform.
-func (c *Client) Check(ctx context.Context, lockfileJSON []byte) (*CheckResponse, error) {
-	if !c.IsConfigured() {
-		return nil, ErrNotConfigured
-	}
-
-	var resp CheckResponse
-	if err := c.post(ctx, "/v1/check", lockfileJSON, &resp); err != nil {
-		return nil, err
-	}
-	return &resp, nil
-}
-
 // RecentIntel fetches recent threat-intel events from the platform. The
 // /v1/intel/recent feed is public, so no API key is required.
 func (c *Client) RecentIntel(ctx context.Context, limit int) ([]IntelEvent, error) {

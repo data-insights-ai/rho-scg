@@ -249,15 +249,6 @@ func TestClient_Sign(t *testing.T) {
 	}
 }
 
-// Check is the one endpoint that genuinely needs an account; without a key it
-// must say so rather than issue a request that will be rejected.
-func TestClient_CheckRequiresAPIKey(t *testing.T) {
-	c := NewClient("https://api.example.com", "")
-	if _, err := c.Check(context.Background(), []byte("{}")); !errors.Is(err, ErrNotConfigured) {
-		t.Errorf("got %v, want ErrNotConfigured", err)
-	}
-}
-
 func TestClient_RecentIntel(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")

@@ -66,10 +66,24 @@ jobs:
       - name: build
         run: make build
 
+      # A finding (exit 1) fails the job. An SCG operational failure (exit 2:
+      # platform unreachable, budget spent, data past its freshness budget)
+      # is a warning here: it says nothing about this repository and must not
+      # block merging CLI changes. The scheduled dogfood workflow is the hard
+      # canary for the platform.
       - name: verify our own lockfile
         env:
           SCG_API_KEY: ${{ secrets.SCG_API_KEY }}
-        run: ./scg check --verbose
+        run: |
+          set +e
+          ./scg check --verbose
+          code=$?
+          set -e
+          if [ "$code" -eq 2 ]; then
+            echo "::warning::scg check could not complete (exit 2): SCG operational failure, not a finding"
+            exit 0
+          fi
+          exit "$code"
 
   security:
     runs-on: ubuntu-latest
