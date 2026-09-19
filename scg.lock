@@ -1,10 +1,11 @@
 {
   "version": 1,
-  "generated_at": "2026-09-09T13:12:04.659276Z",
+  "generated_at": "2026-09-19T21:16:38.76569Z",
   "pipelines": [
     {
       "path": ".github/workflows/ci.yml",
       "type": "github_actions",
+      "repo": "github.com/data-insights-ai/rho-scg",
       "steps": [
         {
           "name": "checkout",
@@ -14,7 +15,7 @@
             {
               "ecosystem": "github_action",
               "reference": "actions/checkout@v4",
-              "hash": "34e114876b0b11c390a56381ad16ebd13914f8d5",
+              "hash": "11d5960a326750d5838078e36cf38b85af677262",
               "algorithm": "sha1",
               "source": "platform:api.github.com"
             }
@@ -48,7 +49,7 @@
             {
               "ecosystem": "github_action",
               "reference": "actions/checkout@v4",
-              "hash": "34e114876b0b11c390a56381ad16ebd13914f8d5",
+              "hash": "11d5960a326750d5838078e36cf38b85af677262",
               "algorithm": "sha1",
               "source": "platform:api.github.com"
             }
@@ -93,8 +94,8 @@
           "tools": [
             {
               "ecosystem": "github_action",
-              "reference": "golangci/golangci-lint-action@v6",
-              "hash": "55c2c1448f86e01eaae002a5a3a9624417608d84",
+              "reference": "golangci/golangci-lint-action@v8",
+              "hash": "4afd733a84b1f43292c63897423277bb7f4313a9",
               "algorithm": "sha1",
               "source": "platform:api.github.com"
             }
@@ -111,12 +112,112 @@
           "job": "test",
           "order": 9,
           "tools": null
+        },
+        {
+          "name": "checkout",
+          "job": "dogfood",
+          "order": 10,
+          "tools": [
+            {
+              "ecosystem": "github_action",
+              "reference": "actions/checkout@v4",
+              "hash": "11d5960a326750d5838078e36cf38b85af677262",
+              "algorithm": "sha1",
+              "source": "platform:api.github.com"
+            }
+          ]
+        },
+        {
+          "name": "setup-go",
+          "job": "dogfood",
+          "order": 11,
+          "tools": [
+            {
+              "ecosystem": "github_action",
+              "reference": "actions/setup-go@v5",
+              "hash": "40f1582b2485089dde7abd97c1529aa768e1baff",
+              "algorithm": "sha1",
+              "source": "platform:api.github.com"
+            }
+          ]
+        },
+        {
+          "name": "build",
+          "job": "dogfood",
+          "order": 12,
+          "tools": null
+        },
+        {
+          "name": "verify our own lockfile",
+          "job": "dogfood",
+          "order": 13,
+          "tools": null,
+          "secrets": [
+            {
+              "name": "SCG_API_KEY",
+              "source": "secrets"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": ".github/workflows/dogfood.yml",
+      "type": "github_actions",
+      "repo": "github.com/data-insights-ai/rho-scg",
+      "steps": [
+        {
+          "name": "checkout",
+          "job": "check",
+          "order": 0,
+          "tools": [
+            {
+              "ecosystem": "github_action",
+              "reference": "actions/checkout@v4",
+              "hash": "11d5960a326750d5838078e36cf38b85af677262",
+              "algorithm": "sha1",
+              "source": "platform:api.github.com"
+            }
+          ]
+        },
+        {
+          "name": "setup-go",
+          "job": "check",
+          "order": 1,
+          "tools": [
+            {
+              "ecosystem": "github_action",
+              "reference": "actions/setup-go@v5",
+              "hash": "40f1582b2485089dde7abd97c1529aa768e1baff",
+              "algorithm": "sha1",
+              "source": "platform:api.github.com"
+            }
+          ]
+        },
+        {
+          "name": "build",
+          "job": "check",
+          "order": 2,
+          "tools": null
+        },
+        {
+          "name": "verify our own lockfile",
+          "job": "check",
+          "order": 3,
+          "tools": null,
+          "secrets": [
+            {
+              "name": "SCG_API_KEY",
+              "source": "secrets"
+            }
+          ]
         }
       ]
     },
     {
       "path": ".github/workflows/release.yml",
       "type": "github_actions",
+      "repo": "github.com/data-insights-ai/rho-scg",
       "steps": [
         {
           "name": "checkout",
@@ -126,7 +227,7 @@
             {
               "ecosystem": "github_action",
               "reference": "actions/checkout@v4",
-              "hash": "34e114876b0b11c390a56381ad16ebd13914f8d5",
+              "hash": "11d5960a326750d5838078e36cf38b85af677262",
               "algorithm": "sha1",
               "source": "platform:api.github.com"
             }
@@ -192,8 +293,8 @@
             {
               "ecosystem": "github_action",
               "reference": "softprops/action-gh-release@v2",
-              "hash": "153bb8e04406b158c6c84fc1615b65b24149a1fe",
-              "algorithm": "sha1",
+              "hash": "3bb12739c298aeb8a4eeaf626c5b8d85266b0e65",
+              "algorithm": "sha256",
               "source": "platform:api.github.com"
             }
           ]
@@ -203,7 +304,7 @@
   ],
   "signature": {
     "algorithm": "ed25519-platform",
-    "value": "/0V8YWThlsCy9awEAIfBhJxroowPtBFSek7YMKcxIO6VOHOnWk9pr0MP+4zGI7QEJkLVuLD+sqmOzKv36CiFBA==",
+    "value": "RpZzel4OXyfuuurFmagjBcCTETl73Um75YIu1E0+KuCl1PO2AZRJZegSDa6LhcNTKZb5hFmwQCyUZaOOHzyQAQ==",
     "public_key": "Z+U1HXD+1LrnVdYXDR/MhuYaEApwtN5+wYkn6VeosWU="
   }
 }
