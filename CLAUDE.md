@@ -144,7 +144,7 @@ internal/testutil  Test helpers
 
 ## Current State (v0.1.32)
 
-- Commands: `init`, `check`, `update`, `scope`, `audit`, `intel`, `login`, `logout`
+- Commands: `init`, `check`, `update`, `scope`, `audit`, `watch`, `unwatch`, `watches`, `intel`, `login`, `logout`
 - The platform client reports the build in its User-Agent (`platform.Version` is set from `main.version`)
 - Signatures anchored to the pinned platform key; no local fallback
 - `check` deduplicates references, resolves concurrently (max 8), and reports

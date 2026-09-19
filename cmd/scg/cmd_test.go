@@ -182,10 +182,10 @@ func TestDoIntel_RendersEvents(t *testing.T) {
 	defer srv.Close()
 	t.Setenv("SCG_PLATFORM_URL", srv.URL)
 
-	if err := doIntel(context.Background(), 5, false); err != nil {
+	if err := doIntel(context.Background(), intelOptions{limit: 5}); err != nil {
 		t.Fatalf("doIntel: %v", err)
 	}
-	if err := doIntel(context.Background(), 5, true); err != nil {
+	if err := doIntel(context.Background(), intelOptions{limit: 5, jsonOut: true}); err != nil {
 		t.Fatalf("doIntel --json: %v", err)
 	}
 }

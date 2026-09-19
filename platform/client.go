@@ -265,6 +265,9 @@ func (c *Client) attempt(ctx context.Context, method, path string, body []byte, 
 		return err
 	}
 
+	if resp.StatusCode == http.StatusNoContent || dst == nil {
+		return nil
+	}
 	lr := io.LimitReader(resp.Body, maxResponseBytes)
 	if err := json.NewDecoder(lr).Decode(dst); err != nil {
 		return fmt.Errorf("decode platform response: %w", err)
@@ -275,8 +278,10 @@ func (c *Client) attempt(ctx context.Context, method, path string, body []byte, 
 // statusError maps an HTTP status onto a sentinel error.
 func statusError(resp *http.Response) error {
 	switch {
-	case resp.StatusCode == http.StatusOK:
+	case resp.StatusCode >= 200 && resp.StatusCode < 300:
 		return nil
+	case resp.StatusCode == http.StatusPaymentRequired:
+		return entitlementErrorFrom(resp)
 	case resp.StatusCode == http.StatusUnauthorized, resp.StatusCode == http.StatusForbidden:
 		return ErrUnauthorized
 	case resp.StatusCode == http.StatusTooManyRequests:
@@ -362,4 +367,126 @@ func (c *Client) setCache(key string, data any) {
 		}
 	}
 	c.cache[key] = &cacheEntry{data: data, expiresAt: now.Add(cacheTTL)}
+}
+
+// ErrNotEntitled reports that the organization's plan does not include what
+// was asked for (HTTP 402). The error names the feature and the plan.
+var ErrNotEntitled = errors.New("not included in your plan")
+
+type entitlementError struct {
+	message      string
+	feature      string
+	requiredPlan string
+}
+
+func (e *entitlementError) Error() string {
+	if e.message == "" {
+		return ErrNotEntitled.Error()
+	}
+	return e.message + " (see https://scg.data-insights.ai/account#plans)"
+}
+
+func (e *entitlementError) Unwrap() error { return ErrNotEntitled }
+
+// entitlementErrorFrom reads the platform's 402 body: {"error","feature","required_plan"}.
+func entitlementErrorFrom(resp *http.Response) error {
+	var body struct {
+		Error        string `json:"error"`
+		Feature      string `json:"feature"`
+		RequiredPlan string `json:"required_plan"`
+	}
+	_ = json.NewDecoder(io.LimitReader(resp.Body, 64*1024)).Decode(&body)
+	return &entitlementError{message: body.Error, feature: body.Feature, requiredPlan: body.RequiredPlan}
+}
+
+// UploadLockfile registers the lockfile's tools as watched for repo: the
+// platform replaces the repository's watch set and alerts on drift.
+func (c *Client) UploadLockfile(ctx context.Context, lockfileJSON []byte, repo string) (*LockfileResponse, error) {
+	if !c.IsConfigured() {
+		return nil, ErrNotConfigured
+	}
+	path := "/v1/lockfile"
+	if repo != "" {
+		path += "?repo=" + url.QueryEscape(repo)
+	}
+	var resp LockfileResponse
+	if err := c.post(ctx, path, lockfileJSON, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
+// ListWatches lists what the organization watches, all repositories or one.
+func (c *Client) ListWatches(ctx context.Context, repo string) (*WatchesResponse, error) {
+	if !c.IsConfigured() {
+		return nil, ErrNotConfigured
+	}
+	path := "/v1/watches"
+	if repo != "" {
+		path += "?repo=" + url.QueryEscape(repo)
+	}
+	var resp WatchesResponse
+	if err := c.get(ctx, path, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
+// Unwatch stops watching a repository (ecosystem and reference empty) or
+// one tool; empty selectors are wildcards.
+func (c *Client) Unwatch(ctx context.Context, repo, ecosystem, reference string) error {
+	if !c.IsConfigured() {
+		return ErrNotConfigured
+	}
+	q := url.Values{}
+	if repo != "" {
+		q.Set("repo", repo)
+	}
+	if ecosystem != "" {
+		q.Set("ecosystem", ecosystem)
+	}
+	if reference != "" {
+		q.Set("reference", reference)
+	}
+	var ignored struct{}
+	return c.do(ctx, http.MethodDelete, "/v1/watches?"+q.Encode(), nil, &ignored)
+}
+
+// WatchedIntel is the organization's view of the shared feed: events on
+// the tools it watches.
+func (c *Client) WatchedIntel(ctx context.Context, limit int) ([]IntelEvent, error) {
+	if !c.IsConfigured() {
+		return nil, ErrNotConfigured
+	}
+	var events []IntelEvent
+	if err := c.get(ctx, fmt.Sprintf("/v1/intel?limit=%d", limit), &events); err != nil {
+		return nil, err
+	}
+	return events, nil
+}
+
+// PrivateIntel is the organization's own feed (Enterprise): drift on its
+// watched tools with the repositories concerned, drift its checks found,
+// failed webhook deliveries.
+func (c *Client) PrivateIntel(ctx context.Context, limit int) ([]OrgIntelEvent, error) {
+	if !c.IsConfigured() {
+		return nil, ErrNotConfigured
+	}
+	var events []OrgIntelEvent
+	if err := c.get(ctx, fmt.Sprintf("/v1/intel/private?limit=%d", limit), &events); err != nil {
+		return nil, err
+	}
+	return events, nil
+}
+
+// PrivateIntelSTIX fetches the private feed as a STIX 2.1 bundle, raw.
+func (c *Client) PrivateIntelSTIX(ctx context.Context, limit int) (json.RawMessage, error) {
+	if !c.IsConfigured() {
+		return nil, ErrNotConfigured
+	}
+	var raw json.RawMessage
+	if err := c.get(ctx, fmt.Sprintf("/v1/intel/private/stix?limit=%d", limit), &raw); err != nil {
+		return nil, err
+	}
+	return raw, nil
 }

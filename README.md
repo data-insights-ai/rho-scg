@@ -304,12 +304,25 @@ The SCG Platform at `api.scg.data-insights.ai` continuously crawls and pre-compu
 | `scg update` | Re-resolve all dependencies, update `scg.lock` | 0 = success, 2 = operational |
 | `scg scope --step NAME` | Audit secrets for a step (add `--sanitize` to remove them) | 0 = clean, 1 = violations, 2 = operational |
 | `scg audit` | Full security report (drift + secret exposure) | 0 = clean, 1 = issues, 2 = operational |
-| `scg intel` | Recent drift and burst events from the public intel feed | 0 |
+| `scg watch [--repo NAME]` | Upload the signed `scg.lock` so the platform watches its tools for this repository (needs a key) | 0 = watching, 2 = operational |
+| `scg unwatch [--repo NAME \| --all]` | Stop watching a repository, or every repository | 0 |
+| `scg watches [--json]` | List watched repositories and tools | 0 |
+| `scg intel [--watched\|--private] [--stix]` | Drift and burst events: the public feed, only your watched tools, or your organization's private feed | 0 |
 | `scg login` / `scg logout` | Sign this machine in to your organization by browser (stores a key, owner-only), or forget it | 0 |
 | `scg version` | Print version | 0 |
 
-`--json` on `init`, `check`, `scope` and `audit` prints a structured result with
-the same exit code the terminal run would have.
+`--json` on `init`, `check`, `scope`, `audit` and `watches` prints a structured
+result with the same exit code the terminal run would have. `check` and
+`audit` include the findings: `summary` (total, verified, drifted, unverified),
+`drift[]` (ecosystem, reference, both hashes, severity, detail) and
+`unverified[]`; `scope` includes `violations[]`, the tool and where its profile
+came from (`seed`, `seed+override`, `override`).
+
+`init --watch` and `update --watch` upload the lockfile right after writing it.
+The repository name comes from `--repo`, `SCG_REPO`, `GITHUB_REPOSITORY`,
+`CI_PROJECT_URL` or the git remote, in that order. Watching more repositories
+than the plan allows, or reading the private feed on a plan without it, exits
+2 with the plan that would allow it; that is never reported as a finding.
 
 ## Configuration
 
@@ -318,6 +331,7 @@ Zero-config by default. Optional environment variables:
 | Variable | Default | Purpose |
 |---|---|---|
 | `SCG_API_KEY` | (none) | API key of your organization; without it `scg login` credentials are used, else anonymous (20 requests/hour) |
+| `SCG_REPO` | (detected) | Repository name for `watch`, e.g. `github.com/acme/app` |
 | `SCG_PLATFORM_URL` | `https://api.scg.data-insights.ai` | Platform API endpoint |
 | `SCG_LOCKFILE` | `scg.lock` | Lockfile path |
 | `SCG_WORKFLOW_DIR` | `.github/workflows` | Workflow directory |

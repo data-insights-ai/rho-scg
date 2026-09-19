@@ -17,16 +17,29 @@ import (
 // Fetches the profile from the platform, scans local env, matches forbidden patterns.
 // If sanitize is true, actually removes forbidden secrets from the environment.
 func doScope(ctx context.Context, logger *slog.Logger, workflowDir, stepName string, sanitize bool) error {
+	_, err := doScopeDetailed(ctx, logger, workflowDir, stepName, sanitize)
+	return err
+}
+
+// scopeOutcome is what doScopeDetailed found, for --json.
+type scopeOutcome struct {
+	Tool       string
+	Source     string
+	Violations []scopeViolation
+}
+
+func doScopeDetailed(ctx context.Context, logger *slog.Logger, workflowDir, stepName string, sanitize bool) (scopeOutcome, error) {
+	var out scopeOutcome
 	// 1. Discover and parse workflows to find the step and its tool.
 	paths, err := discoverWorkflows(workflowDir)
 	if err != nil {
-		return err
+		return out, err
 	}
 
 	p := parser.NewWorkflowParser()
 	workflows, err := parseWorkflows(p, paths)
 	if err != nil {
-		return err
+		return out, err
 	}
 
 	var stepTool *parser.ToolRef
@@ -40,7 +53,7 @@ func doScope(ctx context.Context, logger *slog.Logger, workflowDir, stepName str
 		}
 	}
 	if stepTool == nil {
-		return fmt.Errorf("step %q not found or has no tool reference", stepName)
+		return out, fmt.Errorf("step %q not found or has no tool reference", stepName)
 	}
 
 	// 2. Fetch security profile from the platform.
@@ -50,7 +63,7 @@ func doScope(ctx context.Context, logger *slog.Logger, workflowDir, stepName str
 	baseRef := extractBaseRef(stepTool.Reference)
 	profile, err := client.FetchProfile(ctx, stepTool.Ecosystem, baseRef)
 	if err != nil {
-		return fmt.Errorf("fetch profile for %s: %w", baseRef, err)
+		return out, fmt.Errorf("fetch profile for %s: %w", baseRef, err)
 	}
 
 	// 3. Scan environment for secrets.
@@ -63,7 +76,7 @@ func doScope(ctx context.Context, logger *slog.Logger, workflowDir, stepName str
 	// the very secret the rule existed to block.
 	compiled, err := compileForbidden(profile.ForbiddenSecrets)
 	if err != nil {
-		return operational("profile for %s: %w", stepTool.Reference, err)
+		return out, operational("profile for %s: %w", stepTool.Reference, err)
 	}
 
 	var violations []scopeViolation
@@ -87,7 +100,7 @@ func doScope(ctx context.Context, logger *slog.Logger, workflowDir, stepName str
 			if err := os.Unsetenv(v.Secret); err != nil {
 				// Sanitisation is the point of --sanitize. If a secret cannot
 				// be removed, the step must not proceed believing it was.
-				return operational("could not unset %s: %w", v.Secret, err)
+				return out, operational("could not unset %s: %w", v.Secret, err)
 			}
 			logger.Info("unset forbidden secret", "secret", v.Secret, "reason", v.Reason)
 		}
@@ -96,11 +109,12 @@ func doScope(ctx context.Context, logger *slog.Logger, workflowDir, stepName str
 	// 6. Print results.
 	printScopeOutput(os.Stdout, stepName, stepTool, profile, violations, sanitize)
 
+	out = scopeOutcome{Tool: stepTool.Reference, Source: profile.Source, Violations: violations}
 	if len(violations) > 0 {
-		return fmt.Errorf("%d secret violation(s) found", len(violations))
+		return out, fmt.Errorf("%d secret violation(s) found", len(violations))
 	}
 
-	return nil
+	return out, nil
 }
 
 type scopeViolation struct {

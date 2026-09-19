@@ -305,3 +305,79 @@ func TestClient_CacheExpires(t *testing.T) {
 		t.Error("an expired cache entry must be a miss")
 	}
 }
+
+// The client's watch and intel methods hit the documented routes and need
+// a key.
+func TestClientWatchAndIntelRoutes(t *testing.T) {
+	var paths []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		paths = append(paths, r.Method+" "+r.URL.RequestURI())
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.Method == http.MethodDelete:
+			w.WriteHeader(http.StatusNoContent)
+		case strings.HasPrefix(r.URL.Path, "/v1/watches"):
+			_, _ = w.Write([]byte(`{"organization":"acme","repos":[{"repo":"github.com/acme/app","tools":2,"updated_at":"2026-09-20T00:00:00Z"}],"watches":[],"total":2,"repo_limit":1}`))
+		case r.URL.Path == "/v1/intel/private/stix":
+			_, _ = w.Write([]byte(`{"type":"bundle","objects":[]}`))
+		default:
+			_, _ = w.Write([]byte(`[]`))
+		}
+	}))
+	defer srv.Close()
+	c := NewClient(srv.URL, "scg_test")
+	ctx := context.Background()
+	if list, err := c.ListWatches(ctx, "github.com/acme/app"); err != nil || len(list.Repos) != 1 || list.RepoLimit != 1 {
+		t.Fatalf("list = %+v, %v", list, err)
+	}
+	if err := c.Unwatch(ctx, "github.com/acme/app", "", ""); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.WatchedIntel(ctx, 5); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.PrivateIntel(ctx, 5); err != nil {
+		t.Fatal(err)
+	}
+	if raw, err := c.PrivateIntelSTIX(ctx, 5); err != nil || !strings.Contains(string(raw), "bundle") {
+		t.Fatalf("stix = %s, %v", raw, err)
+	}
+	want := []string{"GET /v1/watches?repo=github.com%2Facme%2Fapp", "DELETE /v1/watches?repo=github.com%2Facme%2Fapp", "GET /v1/intel?limit=5", "GET /v1/intel/private?limit=5", "GET /v1/intel/private/stix?limit=5"}
+	if strings.Join(paths, "|") != strings.Join(want, "|") {
+		t.Fatalf("paths = %v", paths)
+	}
+	none := NewClient(srv.URL, "")
+	if _, err := none.ListWatches(ctx, ""); !errors.Is(err, ErrNotConfigured) {
+		t.Fatal("no key must be ErrNotConfigured")
+	}
+}
+
+// A 402 is a plan refusal: ErrNotEntitled with the platform's message, and
+// a plain 2xx without a body decodes into nothing.
+func TestClient_PaymentRequired(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.URL.Path == "/v1/intel/private" {
+			w.WriteHeader(http.StatusPaymentRequired)
+			_, _ = w.Write([]byte(`{"error":"the private feed is an Enterprise feature","feature":"private_intel_feeds","required_plan":"enterprise"}`))
+			return
+		}
+		w.WriteHeader(http.StatusPaymentRequired)
+	}))
+	defer srv.Close()
+	c := NewClient(srv.URL, "scg_test")
+	_, err := c.PrivateIntel(context.Background(), 5)
+	if !errors.Is(err, ErrNotEntitled) || !strings.Contains(err.Error(), "Enterprise feature") || !strings.Contains(err.Error(), "#plans") {
+		t.Fatalf("402 with body: %v", err)
+	}
+	_, err = c.ListWatches(context.Background(), "")
+	if !errors.Is(err, ErrNotEntitled) || err.Error() != ErrNotEntitled.Error() {
+		t.Fatalf("402 without body: %v", err)
+	}
+	if _, err := c.UploadLockfile(context.Background(), []byte("{}"), "x"); !errors.Is(err, ErrNotEntitled) {
+		t.Fatalf("upload 402: %v", err)
+	}
+	if _, err := NewClient(srv.URL, "").UploadLockfile(context.Background(), []byte("{}"), "x"); !errors.Is(err, ErrNotConfigured) {
+		t.Fatalf("upload without key: %v", err)
+	}
+}

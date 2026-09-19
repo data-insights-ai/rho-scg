@@ -46,6 +46,12 @@ func main() {
 		err = runAudit(ctx, os.Args[2:])
 	case "intel":
 		err = runIntel(ctx, os.Args[2:])
+	case "watch":
+		err = runWatch(ctx, os.Args[2:])
+	case "unwatch":
+		err = runUnwatch(ctx, os.Args[2:])
+	case "watches":
+		err = runWatches(ctx, os.Args[2:])
 	case "login":
 		err = runLogin(ctx, os.Args[2:])
 	case "logout":
@@ -94,6 +100,8 @@ func runInit(ctx context.Context, args []string) error {
 	jsonOut := fs.Bool("json", false, "output results as JSON")
 	timeout := fs.String("timeout", "", "overall time limit, e.g. 90s or 5m (0 disables)")
 	verbose := fs.Bool("verbose", false, "show detailed resolution progress")
+	watch := fs.Bool("watch", false, "after writing, upload the lockfile so the platform watches its tools (needs a key)")
+	repoFlag := fs.String("repo", "", "repository name for --watch (default: detected)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -109,6 +117,9 @@ func runInit(ctx context.Context, args []string) error {
 	resolvers := buildResolvers()
 
 	err = classifyDeadline(ctx, doInit(ctx, logger, *workflowDir, *lockfile, resolvers, newPlatformSigner()), limit)
+	if err == nil && *watch {
+		err = watchAfterWrite(ctx, *lockfile, *repoFlag)
+	}
 	if *jsonOut {
 		result := &JSONResult{Command: "init", Status: "ok", ExitCode: 0}
 		if err != nil {
@@ -149,9 +160,13 @@ func runCheck(ctx context.Context, args []string) error {
 
 	logger := makeLogger(*verbose)
 
-	err = classifyDeadline(ctx, doCheck(ctx, logger, *lockfile, *sarif), limit)
+	outcome, err := doCheckDetailed(ctx, logger, *lockfile, *sarif)
+	err = classifyDeadline(ctx, err, limit)
 	if *jsonOut {
 		result := &JSONResult{Command: "check", Status: "ok", ExitCode: 0}
+		result.Summary = &JSONSummary{Total: outcome.Total, Verified: outcome.Verified, Drifted: len(outcome.Results), Unverified: len(outcome.Warnings)}
+		result.Drift = jsonDrift(outcome.Results)
+		result.Unverified = outcome.Warnings
 		if err != nil {
 			result.Status = "drift_detected"
 			result.ExitCode = exitCodeFor(err)
@@ -176,6 +191,8 @@ func runUpdate(ctx context.Context, args []string) error {
 	lockfile := fs.String("lockfile", "scg.lock", "lockfile path")
 	timeout := fs.String("timeout", "", "overall time limit, e.g. 90s or 5m (0 disables)")
 	verbose := fs.Bool("verbose", false, "show detailed resolution progress")
+	watch := fs.Bool("watch", false, "after writing, upload the lockfile so the platform watches its tools (needs a key)")
+	repoFlag := fs.String("repo", "", "repository name for --watch (default: detected)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -188,7 +205,13 @@ func runUpdate(ctx context.Context, args []string) error {
 	defer cancel()
 
 	logger := makeLogger(*verbose)
-	return classifyDeadline(ctx, doUpdate(ctx, logger, *workflowDir, *lockfile), limit)
+	if err := classifyDeadline(ctx, doUpdate(ctx, logger, *workflowDir, *lockfile), limit); err != nil {
+		return err
+	}
+	if *watch {
+		return watchAfterWrite(ctx, *lockfile, *repoFlag)
+	}
+	return nil
 }
 
 func runScope(ctx context.Context, args []string) error {
@@ -208,9 +231,12 @@ func runScope(ctx context.Context, args []string) error {
 
 	logger := makeLogger(*verbose)
 
-	err := doScope(ctx, logger, *workflowDir, *stepName, *sanitize)
+	outcome, err := doScopeDetailed(ctx, logger, *workflowDir, *stepName, *sanitize)
 	if *jsonOut {
-		result := &JSONResult{Command: "scope", Status: "ok", ExitCode: 0}
+		result := &JSONResult{Command: "scope", Status: "ok", ExitCode: 0, Tool: outcome.Tool, ProfileSource: outcome.Source}
+		for _, v := range outcome.Violations {
+			result.Violations = append(result.Violations, JSONViolation{Step: *stepName, Secret: v.Secret, Pattern: v.Pattern, Reason: v.Reason, Tool: v.Tool})
+		}
 		if err != nil {
 			result.Status = "violations_found"
 			result.ExitCode = exitCodeFor(err)
@@ -250,9 +276,15 @@ func runAudit(ctx context.Context, args []string) error {
 	logger := makeLogger(*verbose)
 	resolvers := buildResolvers()
 
-	err = classifyDeadline(ctx, doAudit(ctx, logger, *workflowDir, *lockfile, resolvers), limit)
+	outcome, err := doAuditDetailed(ctx, logger, *workflowDir, *lockfile, resolvers)
+	err = classifyDeadline(ctx, err, limit)
 	if *jsonOut {
 		result := &JSONResult{Command: "audit", Status: "ok", ExitCode: 0}
+		result.AuditDrift = jsonDrift(outcome.Drift)
+		result.Unverified = outcome.Unverified
+		for _, v := range outcome.Violations {
+			result.AuditViolations = append(result.AuditViolations, JSONViolation{Step: v.StepName, Secret: v.Secret, Pattern: v.Pattern, Reason: v.Reason})
+		}
 		if err != nil {
 			result.Status = "issues_found"
 			result.ExitCode = exitCodeFor(err)
@@ -275,10 +307,13 @@ func runIntel(ctx context.Context, args []string) error {
 	fs := flag.NewFlagSet("intel", flag.ExitOnError)
 	limit := fs.Int("limit", 20, "number of recent events to show")
 	jsonOut := fs.Bool("json", false, "output events as JSON")
+	watched := fs.Bool("watched", false, "events on the tools your organization watches (needs a key)")
+	private := fs.Bool("private", false, "your organization's private feed (Enterprise; needs a key)")
+	stix := fs.Bool("stix", false, "with --private: print the STIX 2.1 bundle")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
-	return doIntel(ctx, *limit, *jsonOut)
+	return classifyEntitlement(doIntel(ctx, intelOptions{limit: *limit, jsonOut: *jsonOut, watched: *watched, private: *private, stix: *stix}))
 }
 
 func printUsage() {
@@ -293,7 +328,10 @@ Commands:
   update    Re-resolve all dependencies, update scg.lock
   scope     Audit and sanitize secrets for a specific step
   audit     Full security report (run in CI where secrets are injected)
-  intel     Show recent threat-intel events (drift, bursts) from the platform
+  intel     Show threat-intel events: the public feed, --watched for your tools, --private (Enterprise)
+  watch     Upload scg.lock so the platform watches its tools for drift (per repository)
+  unwatch   Stop watching this repository (--repo NAME, or --all)
+  watches   List what your organization watches
   login     Sign this machine in to your SCG organization (opens the browser)
   logout    Forget the key stored by login
   version   Print version information
@@ -318,6 +356,8 @@ Examples:
   scg scope --step trivy-scan       # audit secrets for a step
   scg audit                         # full security report
   scg intel --limit 50              # recent drift/burst events
+  scg watch                         # watch this repository's lockfile for drift
+  scg watches                       # what is watched, by repository
 
 Exit codes:
   0   clean — everything verified

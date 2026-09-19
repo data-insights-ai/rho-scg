@@ -143,7 +143,7 @@ SCG models dependencies as a temporal knowledge graph:
 
 ## Current Status (v0.1.24)
 
-- Commands: `init`, `check`, `update`, `scope`, `audit`, `intel`, `login`, `logout`
+- Commands: `init`, `check`, `update`, `scope`, `audit`, `watch`, `unwatch`, `watches`, `intel`, `login`, `logout`
 - Both layers through the platform — no local resolvers, no tokens needed:
   - `scg check` → `/v1/resolve` (hash verification)
   - `scg scope` → `/v1/profile` (secret scoping)

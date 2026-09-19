@@ -17,11 +17,26 @@ import (
 
 // doCheck validates a lockfile against live resolution.
 // Signatures are always verified. No bypass.
+// checkOutcome is what a check found, for --json and callers that report
+// it themselves; doCheck prints it and returns only the verdict.
+type checkOutcome struct {
+	Results  []manifest.DriftResult
+	Warnings []string
+	Total    int
+	Verified int
+}
+
 func doCheck(ctx context.Context, logger *slog.Logger, lockfilePath, sarifPath string) error {
+	_, err := doCheckDetailed(ctx, logger, lockfilePath, sarifPath)
+	return err
+}
+
+func doCheckDetailed(ctx context.Context, logger *slog.Logger, lockfilePath, sarifPath string) (checkOutcome, error) {
+	var out checkOutcome
 	// 1. Read lockfile.
 	lf, err := manifest.ReadLockfile(lockfilePath)
 	if err != nil {
-		return fmt.Errorf("read lockfile: %w", err)
+		return out, fmt.Errorf("read lockfile: %w", err)
 	}
 
 	// 2. Verify the signature against the pinned platform key (mandatory, no bypass).
@@ -32,10 +47,10 @@ func doCheck(ctx context.Context, logger *slog.Logger, lockfilePath, sarifPath s
 	// attacker satisfies by generating their own keypair before opening a pull
 	// request.
 	if lf.Signature == nil {
-		return fmt.Errorf("lockfile is not signed — run 'scg init' to create a signed lockfile")
+		return out, fmt.Errorf("lockfile is not signed — run 'scg init' to create a signed lockfile")
 	}
 	if err := manifest.VerifyLockfile(lf, manifest.NewPlatformVerifier()); err != nil {
-		return fmt.Errorf("signature verification failed: %w", err)
+		return out, fmt.Errorf("signature verification failed: %w", err)
 	}
 	printSuccess(os.Stdout, "Signature verified (SCG platform key %s)",
 		manifest.PlatformKeyFingerprint())
@@ -46,14 +61,15 @@ func doCheck(ctx context.Context, logger *slog.Logger, lockfilePath, sarifPath s
 	// 4. Detect drift (continues on per-tool errors).
 	results, warnings, err := detectDriftWithPartialFailure(ctx, lf, resolvers, logger)
 	if err != nil {
-		return fmt.Errorf("drift detection: %w", err)
+		return out, fmt.Errorf("drift detection: %w", err)
 	}
+	out.Results, out.Warnings = results, warnings
 
 	// 5. Emit SARIF before reporting, so the findings reach GitHub code
 	// scanning even on the paths below that return an error.
 	if sarifPath != "" {
 		if err := emitSARIF(sarifPath, lockfilePath, results, warnings); err != nil {
-			return operational("write SARIF report: %w", err)
+			return out, operational("write SARIF report: %w", err)
 		}
 	}
 
@@ -70,13 +86,14 @@ func doCheck(ctx context.Context, logger *slog.Logger, lockfilePath, sarifPath s
 		}
 	}
 	verified := totalTools - len(warnings)
+	out.Total, out.Verified = totalTools, verified
 
 	// If nothing was verified, that's a failure — not "clean".
 	if verified <= 0 && totalTools > 0 {
 		outln(os.Stderr)
 		printFailure(os.Stderr, "No tools could be verified (%d skipped). Rate limited or platform unavailable. Try again later or set SCG_API_KEY for higher limits.", len(warnings))
 		outln(os.Stderr)
-		return operational("verification failed: 0 of %d tools checked", totalTools)
+		return out, operational("verification failed: 0 of %d tools checked", totalTools)
 	}
 
 	// Report results.
@@ -91,11 +108,11 @@ func doCheck(ctx context.Context, logger *slog.Logger, lockfilePath, sarifPath s
 			// the user's dependencies: nothing was detected, we simply could
 			// not look. Reporting it as a finding is what made an outage
 			// indistinguishable from an attack.
-			return operational("incomplete verification: %d of %d tools could not be checked", len(warnings), totalTools)
+			return out, operational("incomplete verification: %d of %d tools could not be checked", len(warnings), totalTools)
 		}
 		printSuccess(os.Stdout, "All %d tool entries verified, no drift detected.", totalTools)
 		outln(os.Stdout)
-		return nil
+		return out, nil
 	}
 
 	// Drift found.
@@ -108,7 +125,7 @@ func doCheck(ctx context.Context, logger *slog.Logger, lockfilePath, sarifPath s
 	}
 	outf(os.Stderr, "  %s\n\n", red("Build HALTED. Exit code: 1"))
 
-	return fmt.Errorf("drift detected: %d tool(s) changed", len(results))
+	return out, fmt.Errorf("drift detected: %d tool(s) changed", len(results))
 }
 
 // buildResolvers creates platform resolvers for all supported ecosystems.

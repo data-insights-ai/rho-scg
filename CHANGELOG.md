@@ -9,6 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `scg watch`, `scg unwatch`, `scg watches`: register the signed lockfile with
+  the platform per repository so its tools are watched (drift webhooks and the
+  private feed are built on this). `init --watch` / `update --watch` do it in
+  one step; the repository comes from `--repo`, `SCG_REPO`,
+  `GITHUB_REPOSITORY`, `CI_PROJECT_URL` or the git remote. `init` records the
+  repository in the lockfile's pipeline entry.
+- `scg intel --watched`, `--private` and `--stix`: the feed narrowed to your
+  watched tools, your organization's private feed, or STIX 2.1 output.
+- `--json` now carries the findings: `summary`, `drift[]` and `unverified[]`
+  for `check` and `audit`, `violations[]` plus the profile source for `scope`.
+  Before, JSON mode only had the error string.
+- A plan refusal from the platform (HTTP 402) exits 2 and names the plan that
+  allows the feature; it is never reported as a finding.
+- GitHub Action: inputs `watch` (upload after `init`) and `repo`.
+
 - `dogfood` workflow: a scheduled canary that verifies our lockfile against the
   live platform every six hours and fails on any non-zero exit. CI on pushes
   now treats exit 2 as a warning, so platform state cannot block CLI merges.

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/data-insights-ai/rho-scg/internal/config"
+	"github.com/data-insights-ai/rho-scg/internal/repo"
 	"github.com/data-insights-ai/rho-scg/manifest"
 	"github.com/data-insights-ai/rho-scg/parser"
 	"github.com/data-insights-ai/rho-scg/platform"
@@ -82,6 +83,15 @@ func doInit(ctx context.Context, logger *slog.Logger, workflowDir, lockfilePath 
 	}
 
 	lf := buildLockfile(workflows, resolved)
+
+	// The repository the lockfile belongs to, when it can be told: the
+	// platform keys watches by it. Best effort; PipelineEntry.Repo is an
+	// existing optional field, so older readers are unaffected.
+	if name, err := repo.Detect(repoRoot, ""); err == nil {
+		for i := range lf.Pipelines {
+			lf.Pipelines[i].Repo = name
+		}
+	}
 
 	// Sign via the platform. There is deliberately no fallback.
 	//

@@ -117,3 +117,19 @@ Run `scg init` to regenerate and sign the lockfile.
 
 ### Rate limiting
 Anonymous access: 20 requests/hour. Run `scg login` or set `SCG_API_KEY` to use your organization's limit (100/hour on Free, 5,000 on Pro, 50,000 on Enterprise, shared by all keys of the organization).
+
+## Watching a repository
+
+`scg check` verifies on demand. To be told about drift between runs, register
+the signed lockfile with the platform:
+
+```bash
+scg init --watch            # or: scg watch, after init
+scg watches                 # what your organization watches
+scg intel --watched         # drift events for those tools only
+```
+
+Drift on a watched tool reaches the webhook configured on the account page
+(Pro) and the organization's private feed (Enterprise, `scg intel --private`).
+Free watches one repository; a second `scg watch` exits 2 and names the plan
+that allows more.

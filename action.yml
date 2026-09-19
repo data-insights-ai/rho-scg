@@ -44,6 +44,18 @@ inputs:
       github/codeql-action/upload-sarif.
     required: false
     default: ''
+  watch:
+    description: >-
+      In init mode, upload the signed lockfile afterwards so the platform
+      watches its tools for this repository. Needs SCG_API_KEY in the
+      environment.
+    required: false
+    default: 'false'
+  repo:
+    description: >-
+      Repository name for watch (defaults to GITHUB_REPOSITORY).
+    required: false
+    default: ''
   version:
     description: >-
       SCG version to install, e.g. v0.1.32. Defaults to the version this action
@@ -146,6 +158,8 @@ runs:
         SCG_JSON: ${{ inputs.json }}
         SCG_SARIF: ${{ inputs.sarif }}
         SCG_TIMEOUT: ${{ inputs.timeout }}
+        SCG_WATCH: ${{ inputs.watch }}
+        SCG_WATCH_REPO: ${{ inputs.repo }}
       run: |
         set -uo pipefail
 
@@ -171,6 +185,12 @@ runs:
             ;;
           init)
             ARGS=(init --lockfile "$SCG_LOCKFILE" --workflows "$SCG_WORKFLOWS")
+            if [ "$SCG_WATCH" = "true" ]; then
+              ARGS+=(--watch)
+              if [ -n "$SCG_WATCH_REPO" ]; then
+                ARGS+=(--repo "$SCG_WATCH_REPO")
+              fi
+            fi
             ;;
           audit)
             ARGS=(audit --lockfile "$SCG_LOCKFILE" --workflows "$SCG_WORKFLOWS")

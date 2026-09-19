@@ -24,21 +24,34 @@ type auditViolation struct {
 // doAudit runs a full security audit: drift detection + secret exposure analysis.
 // Both layers go through the platform — no local graph.
 func doAudit(ctx context.Context, logger *slog.Logger, workflowDir, lockfilePath string, resolvers map[resolver.Ecosystem]resolver.Resolver) error {
+	_, err := doAuditDetailed(ctx, logger, workflowDir, lockfilePath, resolvers)
+	return err
+}
+
+// auditOutcome is what doAuditDetailed found, for --json.
+type auditOutcome struct {
+	Drift      []manifest.DriftResult
+	Unverified []string
+	Violations []auditViolation
+}
+
+func doAuditDetailed(ctx context.Context, logger *slog.Logger, workflowDir, lockfilePath string, resolvers map[resolver.Ecosystem]resolver.Resolver) (auditOutcome, error) {
+	var out auditOutcome
 	paths, err := discoverWorkflows(workflowDir)
 	if err != nil {
-		return err
+		return out, err
 	}
 
 	p := parser.NewWorkflowParser()
 	workflows, err := parseWorkflows(p, paths)
 	if err != nil {
-		return err
+		return out, err
 	}
 
 	uniqueTools := collectUniqueTools(workflows)
 	resolved, err := resolveTools(ctx, logger, uniqueTools, resolvers)
 	if err != nil {
-		return err
+		return out, err
 	}
 
 	// Layer 1: Drift check against existing lockfile.
@@ -46,17 +59,18 @@ func doAudit(ctx context.Context, logger *slog.Logger, workflowDir, lockfilePath
 	if _, statErr := os.Stat(lockfilePath); statErr == nil {
 		lf, err := manifest.ReadLockfile(lockfilePath)
 		if err != nil {
-			return fmt.Errorf("read lockfile: %w", err)
+			return out, fmt.Errorf("read lockfile: %w", err)
 		}
 		allResolvers := buildResolvers()
 		var driftWarnings []string
 		driftResults, driftWarnings, err = detectDriftWithPartialFailure(ctx, lf, allResolvers)
 		if err != nil {
-			return fmt.Errorf("drift detection: %w", err)
+			return out, fmt.Errorf("drift detection: %w", err)
 		}
 		for _, w := range driftWarnings {
 			printWarning(os.Stdout, "%s", w)
 		}
+		out.Unverified = driftWarnings
 	}
 
 	// Layer 2: Secret scoping via platform profiles.
@@ -83,7 +97,7 @@ func doAudit(ctx context.Context, logger *slog.Logger, workflowDir, lockfilePath
 
 			compiled, err := compileForbidden(profile.ForbiddenSecrets)
 			if err != nil {
-				return operational("profile for %s: %w", baseRef, err)
+				return out, operational("profile for %s: %w", baseRef, err)
 			}
 
 			for _, secret := range envSecrets {
@@ -105,12 +119,14 @@ func doAudit(ctx context.Context, logger *slog.Logger, workflowDir, lockfilePath
 	// Print report.
 	printAuditReport(os.Stdout, workflows, resolved, driftResults, violations)
 
+	out.Drift = driftResults
+	out.Violations = violations
 	issues := len(driftResults) + len(violations)
 	if issues > 0 {
-		return fmt.Errorf("audit found %d issue(s)", issues)
+		return out, fmt.Errorf("audit found %d issue(s)", issues)
 	}
 
-	return nil
+	return out, nil
 }
 
 func printAuditReport(

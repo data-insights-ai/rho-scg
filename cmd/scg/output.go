@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
+
+	"github.com/data-insights-ai/rho-scg/manifest"
 )
 
 // JSONResult is the structured output format for --json mode.
@@ -20,10 +23,14 @@ type JSONResult struct {
 	Secrets   int `json:"secrets,omitempty"`
 
 	// Check fields
-	Drift []JSONDrift `json:"drift,omitempty"`
+	Summary    *JSONSummary `json:"summary,omitempty"`
+	Drift      []JSONDrift  `json:"drift,omitempty"`
+	Unverified []string     `json:"unverified,omitempty"`
 
 	// Scope fields
-	Violations []JSONViolation `json:"violations,omitempty"`
+	Tool          string          `json:"tool,omitempty"`
+	ProfileSource string          `json:"profile_source,omitempty"`
+	Violations    []JSONViolation `json:"violations,omitempty"`
 
 	// Audit fields
 	AuditDrift      []JSONDrift     `json:"audit_drift,omitempty"`
@@ -31,6 +38,23 @@ type JSONResult struct {
 
 	// Error
 	Error string `json:"error,omitempty"`
+}
+
+// jsonDrift converts drift findings for --json output.
+func jsonDrift(results []manifest.DriftResult) []JSONDrift {
+	var out []JSONDrift
+	for _, d := range results {
+		out = append(out, JSONDrift{Ecosystem: d.Ecosystem, Reference: d.Reference, LockedHash: d.LockedHash, LiveHash: d.LiveHash, Severity: strings.ToLower(d.Severity.String()), Detail: d.Detail})
+	}
+	return out
+}
+
+// JSONSummary counts what a check looked at.
+type JSONSummary struct {
+	Total      int `json:"total"`
+	Verified   int `json:"verified"`
+	Drifted    int `json:"drifted"`
+	Unverified int `json:"unverified"`
 }
 
 // JSONDrift is a drift finding in JSON output.
