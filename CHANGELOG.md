@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-09-19
+
+The tags v0.2.0 and v0.2.1 were cut in March before 0.1.30 to 0.1.32; this
+release continues from the highest tag.
+
 ### Added
 
 - `scg watch`, `scg unwatch`, `scg watches`: register the signed lockfile with
