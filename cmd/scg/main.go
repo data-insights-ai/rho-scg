@@ -41,6 +41,10 @@ func main() {
 		err = runAudit(ctx, os.Args[2:])
 	case "intel":
 		err = runIntel(ctx, os.Args[2:])
+	case "login":
+		err = runLogin(ctx, os.Args[2:])
+	case "logout":
+		err = runLogout(os.Args[2:])
 	case "version":
 		fmt.Printf("scg %s\n", version)
 		return
@@ -54,8 +58,18 @@ func main() {
 	}
 
 	if err != nil {
+		code := exitCodeFor(err)
 		fmt.Fprintf(os.Stderr, "error: %s\n", err)
-		os.Exit(1)
+		if code == ExitOperational {
+			// Say plainly that this is not a finding. A red pipeline that looks
+			// like a detection, but is really an SCG outage, costs a team an
+			// incident response for nothing.
+			fmt.Fprintln(os.Stderr,
+				"\nThis is an SCG operational failure, not a supply chain finding. "+
+					"Nothing was detected about your dependencies. Retry, or check "+
+					"https://api.scg.data-insights.ai/v1/status")
+		}
+		os.Exit(code)
 	}
 }
 
@@ -73,13 +87,23 @@ func runInit(ctx context.Context, args []string) error {
 	workflowDir := fs.String("workflows", ".github/workflows", "workflow directory to scan")
 	lockfile := fs.String("lockfile", "scg.lock", "output lockfile path")
 	jsonOut := fs.Bool("json", false, "output results as JSON")
+	timeout := fs.String("timeout", "", "overall time limit, e.g. 90s or 5m (0 disables)")
 	verbose := fs.Bool("verbose", false, "show detailed resolution progress")
-	fs.Parse(args)
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+
+	limit, err := parseTimeout(*timeout)
+	if err != nil {
+		return err
+	}
+	ctx, cancel := withCommandDeadline(ctx, limit)
+	defer cancel()
 
 	logger := makeLogger(*verbose)
 	resolvers := buildResolvers()
 
-	err := doInit(ctx, logger, *workflowDir, *lockfile, resolvers)
+	err = classifyDeadline(ctx, doInit(ctx, logger, *workflowDir, *lockfile, resolvers, newPlatformSigner()), limit)
 	if *jsonOut {
 		result := &JSONResult{Command: "init", Status: "ok", ExitCode: 0}
 		if err != nil {
@@ -100,12 +124,23 @@ func runCheck(ctx context.Context, args []string) error {
 	fs := flag.NewFlagSet("check", flag.ExitOnError)
 	lockfile := fs.String("lockfile", "scg.lock", "lockfile path")
 	jsonOut := fs.Bool("json", false, "output results as JSON")
+	sarif := fs.String("sarif", "", "write findings as SARIF to this path (for GitHub code scanning)")
+	timeout := fs.String("timeout", "", "overall time limit, e.g. 90s or 5m (0 disables)")
 	verbose := fs.Bool("verbose", false, "show detailed resolution progress")
-	fs.Parse(args)
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+
+	limit, err := parseTimeout(*timeout)
+	if err != nil {
+		return err
+	}
+	ctx, cancel := withCommandDeadline(ctx, limit)
+	defer cancel()
 
 	logger := makeLogger(*verbose)
 
-	err := doCheck(ctx, logger, *lockfile)
+	err = classifyDeadline(ctx, doCheck(ctx, logger, *lockfile, *sarif), limit)
 	if *jsonOut {
 		result := &JSONResult{Command: "check", Status: "ok", ExitCode: 0}
 		if err != nil {
@@ -126,11 +161,21 @@ func runUpdate(ctx context.Context, args []string) error {
 	fs := flag.NewFlagSet("update", flag.ExitOnError)
 	workflowDir := fs.String("workflows", ".github/workflows", "workflow directory to scan")
 	lockfile := fs.String("lockfile", "scg.lock", "lockfile path")
+	timeout := fs.String("timeout", "", "overall time limit, e.g. 90s or 5m (0 disables)")
 	verbose := fs.Bool("verbose", false, "show detailed resolution progress")
-	fs.Parse(args)
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+
+	limit, err := parseTimeout(*timeout)
+	if err != nil {
+		return err
+	}
+	ctx, cancel := withCommandDeadline(ctx, limit)
+	defer cancel()
 
 	logger := makeLogger(*verbose)
-	return doUpdate(ctx, logger, *workflowDir, *lockfile)
+	return classifyDeadline(ctx, doUpdate(ctx, logger, *workflowDir, *lockfile), limit)
 }
 
 func runScope(ctx context.Context, args []string) error {
@@ -140,7 +185,9 @@ func runScope(ctx context.Context, args []string) error {
 	jsonOut := fs.Bool("json", false, "output results as JSON")
 	sanitize := fs.Bool("sanitize", false, "remove forbidden secrets from environment (not just report)")
 	verbose := fs.Bool("verbose", false, "show detailed progress")
-	fs.Parse(args)
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
 
 	if *stepName == "" {
 		return fmt.Errorf("--step is required")
@@ -170,13 +217,23 @@ func runAudit(ctx context.Context, args []string) error {
 	workflowDir := fs.String("workflows", ".github/workflows", "workflow directory to scan")
 	lockfile := fs.String("lockfile", "scg.lock", "lockfile path")
 	jsonOut := fs.Bool("json", false, "output results as JSON")
+	timeout := fs.String("timeout", "", "overall time limit, e.g. 90s or 5m (0 disables)")
 	verbose := fs.Bool("verbose", false, "show detailed progress")
-	fs.Parse(args)
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+
+	limit, err := parseTimeout(*timeout)
+	if err != nil {
+		return err
+	}
+	ctx, cancel := withCommandDeadline(ctx, limit)
+	defer cancel()
 
 	logger := makeLogger(*verbose)
 	resolvers := buildResolvers()
 
-	err := doAudit(ctx, logger, *workflowDir, *lockfile, resolvers)
+	err = classifyDeadline(ctx, doAudit(ctx, logger, *workflowDir, *lockfile, resolvers), limit)
 	if *jsonOut {
 		result := &JSONResult{Command: "audit", Status: "ok", ExitCode: 0}
 		if err != nil {
@@ -197,7 +254,9 @@ func runIntel(ctx context.Context, args []string) error {
 	fs := flag.NewFlagSet("intel", flag.ExitOnError)
 	limit := fs.Int("limit", 20, "number of recent events to show")
 	jsonOut := fs.Bool("json", false, "output events as JSON")
-	fs.Parse(args)
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
 	return doIntel(ctx, *limit, *jsonOut)
 }
 
@@ -209,21 +268,26 @@ Usage:
 
 Commands:
   init      Scan workflows, resolve dependencies, write scg.lock
-  check     Validate scg.lock against live state (exit 0=clean, 1=drift)
+  check     Validate scg.lock against live state
   update    Re-resolve all dependencies, update scg.lock
   scope     Audit and sanitize secrets for a specific step
   audit     Full security report (run in CI where secrets are injected)
   intel     Show recent threat-intel events (drift, bursts) from the platform
+  login     Sign this machine in to your SCG organization (opens the browser)
+  logout    Forget the key stored by login
   version   Print version information
 
 Flags (all commands):
   --verbose             Show detailed resolution progress
   --json                Output results as JSON (machine-readable)
   --lockfile PATH       Lockfile path (default: scg.lock)
+  --sarif PATH          Write findings as SARIF (check only, for code scanning)
+  --timeout DURATION    Overall time limit, e.g. 90s or 5m (default 5m, 0 disables)
   --workflows DIR       Workflow directory (default: .github/workflows)
 
 Environment:
-  SCG_API_KEY        SCG Platform API key (higher rate limits, optional)
+  SCG_API_KEY        SCG Platform API key (CI; overrides the key stored by login)
+  SCG_CONFIG_DIR     Where login stores credentials (default: the OS config dir, scg/)
   SCG_PLATFORM_URL   Platform URL (default: https://api.scg.data-insights.ai)
 
 Examples:
@@ -233,6 +297,12 @@ Examples:
   scg scope --step trivy-scan       # audit secrets for a step
   scg audit                         # full security report
   scg intel --limit 50              # recent drift/burst events
+
+Exit codes:
+  0   clean — everything verified
+  1   finding — drift or a secret violation. Fail the build on this.
+  2   operational — SCG could not complete the check (platform unreachable,
+      rate limited, or its data was stale). Not a finding; retry.
 
 Learn more: https://scg.data-insights.ai
 `)

@@ -2,9 +2,6 @@ package main
 
 import (
 	"context"
-	"crypto/ed25519"
-	"crypto/rand"
-	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
@@ -23,7 +20,28 @@ import (
 
 // doInit scans workflows, resolves via the platform, builds and signs a lockfile.
 // No local graph, no DSM bootstrap — the platform handles everything.
-func doInit(ctx context.Context, logger *slog.Logger, workflowDir, lockfilePath string, resolvers map[resolver.Ecosystem]resolver.Resolver) error {
+// LockfileSigner obtains a signature for canonical lockfile bytes. Injecting it
+// rather than reaching for the platform client inside doInit is what lets the
+// tests run without a network: the alternative, a local fallback signer, is the
+// very thing that produced unverifiable lockfiles in production.
+type LockfileSigner interface {
+	SignLockfile(ctx context.Context, lf *manifest.Lockfile) error
+}
+
+// platformSigner signs through the SCG platform.
+type platformSigner struct{ client *platform.Client }
+
+func (s *platformSigner) SignLockfile(ctx context.Context, lf *manifest.Lockfile) error {
+	return signViaPlat(ctx, s.client, lf)
+}
+
+// newPlatformSigner builds the production signer from configuration.
+func newPlatformSigner() *platformSigner {
+	cfg := config.Load()
+	return &platformSigner{client: platform.NewClient(cfg.PlatformBaseURL, cfg.PlatformAPIKey)}
+}
+
+func doInit(ctx context.Context, logger *slog.Logger, workflowDir, lockfilePath string, resolvers map[resolver.Ecosystem]resolver.Resolver, signer LockfileSigner) error {
 	paths, err := discoverWorkflows(workflowDir)
 	if err != nil {
 		return err
@@ -65,15 +83,17 @@ func doInit(ctx context.Context, logger *slog.Logger, workflowDir, lockfilePath 
 
 	lf := buildLockfile(workflows, resolved)
 
-	// Sign via platform (persistent key, identity-bound).
-	// Falls back to local ephemeral signing if platform is unreachable (e.g., tests, offline).
-	cfg := config.Load()
-	client := platform.NewClient(cfg.PlatformBaseURL, cfg.PlatformAPIKey)
-	if err := signViaPlat(ctx, client, lf); err != nil {
-		logger.Info("platform signing unavailable, using local ephemeral key", "err", err)
-		if err := signLocal(lf); err != nil {
-			return fmt.Errorf("local signing: %w", err)
-		}
+	// Sign via the platform. There is deliberately no fallback.
+	//
+	// The previous local fallback generated an ephemeral keypair, signed with
+	// it, and discarded the private half — producing a signature nobody could
+	// ever attest to, which check then reported as "Signature verified". An
+	// unverifiable lockfile is worse than an unsigned one, because it claims a
+	// property it does not have. If signing fails, init fails.
+	if err := signer.SignLockfile(ctx, lf); err != nil {
+		return operational("cannot sign lockfile: %w\n"+
+			"scg init will not write an unsigned lockfile. Check connectivity to "+
+			"the SCG platform, or set SCG_API_KEY if you are rate limited", err)
 	}
 
 	if err := manifest.WriteLockfile(lockfilePath, lf); err != nil {
@@ -84,21 +104,14 @@ func doInit(ctx context.Context, logger *slog.Logger, workflowDir, lockfilePath 
 	return nil
 }
 
-// signLocal signs with an ephemeral ed25519 key (used when platform is unreachable).
-func signLocal(lf *manifest.Lockfile) error {
-	_, privKey, err := ed25519.GenerateKey(rand.Reader)
-	if err != nil {
-		return err
-	}
-	return manifest.SignLockfile(lf, manifest.NewEd25519Signer(privKey))
-}
-
 // signViaPlat sends the lockfile content to the platform for signing.
+//
+// The bytes come from manifest.CanonicalJSON, not a local re-implementation.
+// This function previously marshalled its own stripped copy, which agreed with
+// the canonical form only by coincidence: the first added or reordered field
+// would have made every lockfile signed here fail verification everywhere.
 func signViaPlat(ctx context.Context, client *platform.Client, lf *manifest.Lockfile) error {
-	// Marshal without signature for signing.
-	stripped := *lf
-	stripped.Signature = nil
-	data, err := json.Marshal(stripped)
+	data, err := manifest.CanonicalJSON(lf)
 	if err != nil {
 		return fmt.Errorf("marshal for signing: %w", err)
 	}
@@ -106,6 +119,13 @@ func signViaPlat(ctx context.Context, client *platform.Client, lf *manifest.Lock
 	sig, err := client.Sign(ctx, data)
 	if err != nil {
 		return err
+	}
+
+	// Refuse a signature this build cannot anchor. Storing one would only
+	// defer the failure to check, on someone else's machine.
+	if sig.Algorithm != manifest.AlgorithmPlatform {
+		return fmt.Errorf("platform returned unexpected signature algorithm %q, want %q",
+			sig.Algorithm, manifest.AlgorithmPlatform)
 	}
 
 	lf.Signature = &manifest.Signature{
@@ -136,9 +156,16 @@ func discoverWorkflows(dir string) ([]string, error) {
 			continue
 		}
 		name := e.Name()
-		if strings.HasSuffix(name, ".yml") || strings.HasSuffix(name, ".yaml") {
-			paths = append(paths, filepath.Join(dir, name))
+		if !strings.HasSuffix(name, ".yml") && !strings.HasSuffix(name, ".yaml") {
+			continue
 		}
+		full := filepath.Join(dir, name)
+		// Skip anything that is not a regular file here, so a named pipe or
+		// device node never reaches os.Open at all.
+		if !isRegularFile(full) {
+			continue
+		}
+		paths = append(paths, full)
 	}
 
 	if len(paths) == 0 {
@@ -153,9 +180,9 @@ func discoverWorkflows(dir string) ([]string, error) {
 func parseWorkflows(p parser.Parser, paths []string) ([]*parser.WorkflowFile, error) {
 	var workflows []*parser.WorkflowFile
 	for _, path := range paths {
-		content, err := os.ReadFile(path)
+		content, err := readSourceFile(path)
 		if err != nil {
-			return nil, fmt.Errorf("read %s: %w", path, err)
+			return nil, err
 		}
 		wf, err := p.Parse(path, content)
 		if err != nil {
@@ -284,17 +311,24 @@ func discoverLockfiles(repoRoot string) []string {
 			continue
 		}
 		name := e.Name()
-		switch {
-		case name == "package-lock.json" || name == "pnpm-lock.yaml":
-			paths = append(paths, filepath.Join(repoRoot, name))
-		case name == "requirements.txt" ||
-			(strings.HasPrefix(name, "requirements-") && strings.HasSuffix(name, ".txt")):
-			paths = append(paths, filepath.Join(repoRoot, name))
-		case strings.EqualFold(name, "dockerfile") ||
-			strings.HasSuffix(strings.ToLower(name), ".dockerfile") ||
-			strings.HasPrefix(strings.ToLower(name), "dockerfile."):
-			paths = append(paths, filepath.Join(repoRoot, name))
+		lower := strings.ToLower(name)
+		isLockfile := name == "package-lock.json" || name == "pnpm-lock.yaml" ||
+			name == "requirements.txt" ||
+			(strings.HasPrefix(name, "requirements-") && strings.HasSuffix(name, ".txt")) ||
+			lower == "dockerfile" ||
+			strings.HasSuffix(lower, ".dockerfile") ||
+			strings.HasPrefix(lower, "dockerfile.")
+		if !isLockfile {
+			continue
 		}
+		// e.IsDir() is false for a named pipe or device node, so the type has
+		// to be checked explicitly: reading either one hangs or exhausts
+		// memory, and a contributor chooses what lands in the repository root.
+		full := filepath.Join(repoRoot, name)
+		if !isRegularFile(full) {
+			continue
+		}
+		paths = append(paths, full)
 	}
 
 	sort.Strings(paths)
@@ -305,9 +339,9 @@ func discoverLockfiles(repoRoot string) []string {
 func parseWithMultiParser(parsers []parser.Parser, paths []string) ([]*parser.WorkflowFile, error) {
 	var results []*parser.WorkflowFile
 	for _, path := range paths {
-		content, err := os.ReadFile(path)
+		content, err := readSourceFile(path)
 		if err != nil {
-			return nil, fmt.Errorf("read %s: %w", path, err)
+			return nil, err
 		}
 
 		var matched parser.Parser
@@ -339,7 +373,7 @@ func extractBaseRef(reference string) string {
 }
 
 func printInitSummary(w io.Writer, workflows []*parser.WorkflowFile, resolved map[string]*resolver.Resolution, lockfilePath string) {
-	fmt.Fprintf(w, "\n  Resolving digests:\n")
+	outf(w, "\n  Resolving digests:\n")
 	refs := make([]string, 0, len(resolved))
 	for ref := range resolved {
 		refs = append(refs, ref)
@@ -350,7 +384,7 @@ func printInitSummary(w io.Writer, workflows []*parser.WorkflowFile, resolved ma
 		printSuccess(w, "%-40s %s", ref, dim(res.Algorithm+":"+res.Hash[:minHashLen(len(res.Hash))]))
 	}
 
-	fmt.Fprintf(w, "\n  Written: %s (%d entries, signed)\n\n", bold(lockfilePath), len(resolved))
+	outf(w, "\n  Written: %s (%d entries, signed)\n\n", bold(lockfilePath), len(resolved))
 }
 
 func minHashLen(l int) int {

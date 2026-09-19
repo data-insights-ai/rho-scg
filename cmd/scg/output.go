@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 )
 
@@ -55,8 +56,23 @@ type JSONViolation struct {
 func writeJSON(result *JSONResult) {
 	data, err := json.MarshalIndent(result, "", "  ")
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "json marshal error: %v\n", err)
+		outf(os.Stderr, "json marshal error: %v\n", err)
 		return
 	}
-	fmt.Fprintln(os.Stdout, string(data))
+	outln(os.Stdout, string(data))
+}
+
+// Output helpers.
+//
+// Writes to stdout and stderr are deliberately unchecked: there is nowhere to
+// report a failed write to the terminal, and a broken pipe (scg check | head)
+// is normal, not an error worth surfacing. Routing every such write through
+// these helpers documents that choice once, instead of leaving dozens of
+// silently-dropped error returns that read like oversights.
+func outf(w io.Writer, format string, args ...any) {
+	_, _ = fmt.Fprintf(w, format, args...)
+}
+
+func outln(w io.Writer, args ...any) {
+	_, _ = fmt.Fprintln(w, args...)
 }

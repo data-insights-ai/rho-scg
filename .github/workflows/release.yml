@@ -5,6 +5,12 @@ on:
     tags:
       - 'v*'
 
+permissions:
+  contents: write
+  # Required for cosign keyless signing: the workflow's OIDC token is the
+  # identity the signature is bound to.
+  id-token: write
+
 jobs:
   release:
     runs-on: ubuntu-latest
@@ -38,10 +44,29 @@ jobs:
           sha256sum scg-* > checksums.txt
           cat checksums.txt
 
+      # Sign the checksum file with sigstore keyless signing.
+      #
+      # The checksums alone are served from the same origin as the binaries, so
+      # whoever can replace one can replace the other. A cosign signature bound
+      # to this workflow's OIDC identity is what makes the checksums evidence
+      # rather than a convenience.
+      - name: install cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: sign checksums
+        run: |
+          cd dist
+          cosign sign-blob --yes \
+            --output-signature checksums.txt.sig \
+            --output-certificate checksums.txt.pem \
+            checksums.txt
+
       - name: github release
         uses: softprops/action-gh-release@v2
         with:
           files: |
             dist/scg-*
             dist/checksums.txt
+            dist/checksums.txt.sig
+            dist/checksums.txt.pem
           generate_release_notes: true

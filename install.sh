@@ -102,28 +102,40 @@ main() {
     download "$DOWNLOAD_URL" "${TMP_DIR}/${BINARY_NAME}" || fail "Download failed: ${DOWNLOAD_URL}"
     printf "done\n"
 
-    # Download and verify checksum
-    if download "$CHECKSUM_URL" "${TMP_DIR}/checksums.txt" 2>/dev/null; then
-        EXPECTED=$(grep "${FILENAME}" "${TMP_DIR}/checksums.txt" | awk '{print $1}')
-        if [ -n "$EXPECTED" ]; then
-            if command -v sha256sum >/dev/null 2>&1; then
-                ACTUAL=$(sha256sum "${TMP_DIR}/${BINARY_NAME}" | awk '{print $1}')
-            elif command -v shasum >/dev/null 2>&1; then
-                ACTUAL=$(shasum -a 256 "${TMP_DIR}/${BINARY_NAME}" | awk '{print $1}')
-            else
-                warn "No sha256sum or shasum found — skipping checksum verification"
-                ACTUAL="$EXPECTED"
-            fi
-
-            if [ "$ACTUAL" != "$EXPECTED" ]; then
-                fail "Checksum mismatch!\n  Expected: ${EXPECTED}\n  Got:      ${ACTUAL}\n\nThis could indicate a tampered binary. Do not use."
-            fi
-            info "Checksum verified"
-        else
-            warn "Checksum file found but no entry for ${FILENAME}"
-        fi
+    # Download and verify checksum.
+    #
+    # Every failure below is fatal. This installer used to warn and continue
+    # when the checksum file could not be fetched, or when no sha256 tool was
+    # present — which meant the most convenient path to installing an
+    # unverified binary was to break the verification. For a tool whose entire
+    # purpose is dependency integrity, verification cannot be best-effort.
+    # SCG_ALLOW_UNVERIFIED=1 exists only for air-gapped mirrors and prints a
+    # prominent warning.
+    if [ "${SCG_ALLOW_UNVERIFIED:-0}" = "1" ]; then
+        warn "SCG_ALLOW_UNVERIFIED=1 — installing WITHOUT integrity verification."
+        warn "Only do this if you obtained the binary through a channel you trust."
     else
-        warn "Could not download checksums — skipping verification"
+        download "$CHECKSUM_URL" "${TMP_DIR}/checksums.txt" 2>/dev/null \
+            || fail "Could not download checksums from ${CHECKSUM_URL}.\n  Refusing to install an unverified binary."
+
+        EXPECTED=$(grep " ${FILENAME}$" "${TMP_DIR}/checksums.txt" | awk '{print $1}' | head -1)
+        [ -n "$EXPECTED" ] \
+            || fail "No checksum published for ${FILENAME}.\n  Refusing to install an unverified binary."
+
+        if command -v sha256sum >/dev/null 2>&1; then
+            ACTUAL=$(sha256sum "${TMP_DIR}/${BINARY_NAME}" | awk '{print $1}')
+        elif command -v shasum >/dev/null 2>&1; then
+            ACTUAL=$(shasum -a 256 "${TMP_DIR}/${BINARY_NAME}" | awk '{print $1}')
+        elif command -v openssl >/dev/null 2>&1; then
+            ACTUAL=$(openssl dgst -sha256 "${TMP_DIR}/${BINARY_NAME}" | awk '{print $NF}')
+        else
+            fail "No sha256sum, shasum or openssl available.\n  Cannot verify the download; refusing to install."
+        fi
+
+        if [ "$ACTUAL" != "$EXPECTED" ]; then
+            fail "Checksum mismatch!\n  Expected: ${EXPECTED}\n  Got:      ${ACTUAL}\n\nThis could indicate a tampered binary. Do not use."
+        fi
+        info "Checksum verified"
     fi
 
     # Make executable

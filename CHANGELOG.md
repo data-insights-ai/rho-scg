@@ -7,6 +7,106 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### BREAKING
+
+- **Lockfiles signed before this release no longer verify.** `scg check` now
+  verifies against a platform public key compiled into the binary, and accepts
+  only the `ed25519-platform` algorithm. Every existing lockfile was signed
+  locally with an ephemeral key that was discarded immediately after signing,
+  so nothing can attest to it.
+
+  **Migration:** run `scg init` once, commit the regenerated `scg.lock`. The
+  failure message names the cause:
+
+  ```
+  signature verification failed: lockfile signature algorithm is "ed25519",
+  but only "ed25519-platform" is accepted — re-run 'scg init' against the
+  platform to obtain a signed lockfile
+  ```
+
+  `scg init` now fails if the platform cannot sign, rather than falling back to
+  a local key. A signature nobody can attest to is worse than no signature: it
+  claims a property it does not have, and `check` reported it as verified.
+
+- **`no-verify` input removed from the GitHub Action.** It appended a flag
+  `scg check` never defined, so setting it aborted the run with
+  `flag provided but not defined`. Signature verification has no bypass.
+
+- **Exit code 2 introduced.** `check`, `init`, `update`, `audit` and `scope`
+  now exit `2` for an operational failure — the platform was unreachable, the
+  request budget was spent, or its data was too old to trust. Previously these
+  exited `1`, indistinguishable from a real finding. **Pipelines that treat any
+  non-zero exit as a detection will now report SCG outages as attacks;** fail
+  the build on `1`, retry on `2`.
+
+### Added
+
+- **Pinned trust anchor** (`manifest.PlatformVerifier`). Verification uses a key
+  compiled into the binary, overridable at build time via
+  `-ldflags -X …manifest.PlatformPublicKey=…` for self-hosted deployments.
+  Deliberately not overridable by environment variable: the threat model
+  includes an attacker who can edit the workflow that would set it.
+  `scg check` prints the key fingerprint, derived identically to the platform's
+  own `key_id` so the two can be compared directly.
+- **Staleness handling.** A digest matching a lockfile built from the same
+  unrefreshed platform record proves nothing. `check` now reports stale answers
+  as unverified rather than counting them clean.
+- **`--sarif PATH`** on `check`, and a `sarif` input on the Action: findings
+  reach GitHub code scanning instead of only a job log. Drift is an `error`,
+  an unverifiable entry a `warning`.
+- **`--timeout DURATION`** (default `5m`, `0` disables) on the network-bound
+  commands. Without a ceiling a hung platform stalls for the product of the
+  request timeout, the retry count and the reference count.
+- **Release signing.** Release artifacts are signed with cosign keyless
+  signing; `checksums.txt.sig` and `checksums.txt.pem` accompany each release.
+
+### Changed
+
+- **`check` resolves each distinct reference once**, with bounded concurrency.
+  One action used across four steps previously cost four of the twenty requests
+  an anonymous caller gets per hour.
+- **Platform client**: retry with exponential backoff, `Retry-After` handling,
+  sentinel errors (`ErrRateLimited`, `ErrUnauthorized`, `ErrNotFound`,
+  `ErrUnavailable`) callers can branch on, a versioned `User-Agent`, a
+  type-safe cache, and a refusal to send the API key over plaintext HTTP.
+- **Lockfile I/O**: writes are atomic (temp file, fsync, rename); reads are
+  size-capped at 8 MB, schema-validated, and reject unknown fields — content
+  outside the schema was previously invisible to signature verification.
+- **Scanned input files** are read through a bounded reader that refuses
+  anything which is not a regular file. A named pipe called `ci.yml` in
+  `.github/workflows` previously hung `scg init` until the CI job timed out.
+- **Secret matching** compiles patterns once and treats an uncompilable pattern
+  as a hard error. Skipping it silently permitted the secret the rule existed
+  to block.
+- **`LooksLikeSecret` matches whole words.** `MONKEY`, `AUTHOR`, `AWS_REGION`
+  and `DOCKER_HOST` no longer register as secrets.
+- **GitHub Action inputs pass through `env:`** and arguments are built as an
+  array. They were interpolated into `run:` bodies, so a value derived from an
+  issue title or a matrix entry became a command on the runner.
+- **Both installers verify checksums or refuse to install.** `install.sh`
+  previously warned and installed anyway when the checksum file could not be
+  fetched or no sha256 tool was present.
+- **Registry resolvers moved to the platform.** `rho-scg/resolver` now holds
+  only the shared contract; the code that calls GitHub, Docker Hub, npm and
+  PyPI lives where the credentials do, and no longer ships in a customer's
+  binary. GitHub commit SHAs are now correctly labelled `sha1`, not `sha256`.
+
+### Fixed
+
+- `signViaPlat` built its own copy of the signing canonicalisation instead of
+  calling `manifest.CanonicalJSON`. The two agreed by coincidence; the first
+  added or reordered field would have invalidated every platform-signed
+  lockfile in the field.
+- All six `fs.Parse` error returns are checked.
+
+### Internal
+
+- `golangci-lint` (errcheck, staticcheck, errorlint, bodyclose, noctx) and
+  `govulncheck` run in CI at 0 issues. `make cover-gate` enforces a 75% floor;
+  coverage rose from 63% to 78%.
+- CI dogfoods the tool against this repository's own lockfile.
+
+
 ## [0.1.32] - 2026-06-03
 
 ### Added

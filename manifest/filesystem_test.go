@@ -88,24 +88,26 @@ func TestWriteLockfile_ExistingFile_Overwrite(t *testing.T) {
 	tmpDir := t.TempDir()
 	path := filepath.Join(tmpDir, "scg.lock")
 
-	// Write version 1.
-	lf1 := &Lockfile{Version: 1, GeneratedAt: time.Now()}
+	// Write one pipeline.
+	lf1 := &Lockfile{Version: CurrentVersion, GeneratedAt: time.Now(),
+		Pipelines: []PipelineEntry{{Path: "first.yml", Type: "github_actions"}}}
 	if err := WriteLockfile(path, lf1); err != nil {
 		t.Fatal(err)
 	}
 
-	// Overwrite with version 2.
-	lf2 := &Lockfile{Version: 2, GeneratedAt: time.Now()}
+	// Overwrite with different content.
+	lf2 := &Lockfile{Version: CurrentVersion, GeneratedAt: time.Now(),
+		Pipelines: []PipelineEntry{{Path: "second.yml", Type: "github_actions"}}}
 	if err := WriteLockfile(path, lf2); err != nil {
 		t.Fatal(err)
 	}
 
-	// Read should return version 2.
+	// Read should return the second write, with no remnant of the first.
 	lf3, err := ReadLockfile(path)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if lf3.Version != 2 {
-		t.Errorf("version = %d, want 2", lf3.Version)
+	if len(lf3.Pipelines) != 1 || lf3.Pipelines[0].Path != "second.yml" {
+		t.Errorf("pipelines = %+v, want only second.yml", lf3.Pipelines)
 	}
 }

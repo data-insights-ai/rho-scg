@@ -6,7 +6,6 @@ import (
 	"io"
 	"log/slog"
 	"os"
-	"regexp"
 
 	"github.com/data-insights-ai/rho-scg/internal/config"
 	"github.com/data-insights-ai/rho-scg/parser"
@@ -58,18 +57,23 @@ func doScope(ctx context.Context, logger *slog.Logger, workflowDir, stepName str
 	envSecrets := scoper.ScanEnv()
 
 	// 4. Match secrets against forbidden patterns.
+	//
+	// Patterns compile once, up front, and a pattern that will not compile is
+	// a hard error. Skipping it — the previous behaviour — silently permitted
+	// the very secret the rule existed to block.
+	compiled, err := compileForbidden(profile.ForbiddenSecrets)
+	if err != nil {
+		return operational("profile for %s: %w", stepTool.Reference, err)
+	}
+
 	var violations []scopeViolation
 	for _, secret := range envSecrets {
-		for _, fp := range profile.ForbiddenSecrets {
-			re, err := regexp.Compile(fp.Pattern)
-			if err != nil {
-				continue
-			}
+		for i, re := range compiled {
 			if re.MatchString(secret) {
 				violations = append(violations, scopeViolation{
 					Secret:  secret,
-					Pattern: fp.Pattern,
-					Reason:  fp.Reason,
+					Pattern: profile.ForbiddenSecrets[i].Pattern,
+					Reason:  profile.ForbiddenSecrets[i].Reason,
 					Tool:    stepTool.Reference,
 				})
 				break
@@ -80,7 +84,11 @@ func doScope(ctx context.Context, logger *slog.Logger, workflowDir, stepName str
 	// 5. If sanitize mode, remove blocked secrets.
 	if sanitize && len(violations) > 0 {
 		for _, v := range violations {
-			os.Unsetenv(v.Secret)
+			if err := os.Unsetenv(v.Secret); err != nil {
+				// Sanitisation is the point of --sanitize. If a secret cannot
+				// be removed, the step must not proceed believing it was.
+				return operational("could not unset %s: %w", v.Secret, err)
+			}
 			logger.Info("unset forbidden secret", "secret", v.Secret, "reason", v.Reason)
 		}
 	}
@@ -103,13 +111,13 @@ type scopeViolation struct {
 }
 
 func printScopeOutput(w io.Writer, stepName string, tool *parser.ToolRef, profile *platform.ProfileResponse, violations []scopeViolation, sanitized bool) {
-	fmt.Fprintf(w, "\n  Step: %s\n", bold(stepName))
-	fmt.Fprintf(w, "  Tool: %s\n", cyan(tool.Reference))
-	fmt.Fprintf(w, "  Risk: tier %d\n", profile.RiskTier)
+	outf(w, "\n  Step: %s\n", bold(stepName))
+	outf(w, "  Tool: %s\n", cyan(tool.Reference))
+	outf(w, "  Risk: tier %d\n", profile.RiskTier)
 
 	if len(violations) == 0 {
 		printSuccess(w, "No forbidden secrets exposed")
-		fmt.Fprintln(w)
+		outln(w)
 		return
 	}
 
@@ -118,14 +126,14 @@ func printScopeOutput(w io.Writer, stepName string, tool *parser.ToolRef, profil
 		action = "found and removed from environment"
 	}
 	printFailure(w, "%d secret violation(s) %s", len(violations), action)
-	fmt.Fprintln(w)
+	outln(w)
 	for _, v := range violations {
 		label := "BLOCKED:"
 		if sanitized {
 			label = "REMOVED:"
 		}
-		fmt.Fprintf(w, "    %s %s\n", red(label), bold(v.Secret))
-		fmt.Fprintf(w, "      Pattern: %s\n", dim(v.Pattern))
-		fmt.Fprintf(w, "      Reason:  %s\n\n", v.Reason)
+		outf(w, "    %s %s\n", red(label), bold(v.Secret))
+		outf(w, "      Pattern: %s\n", dim(v.Pattern))
+		outf(w, "      Reason:  %s\n\n", v.Reason)
 	}
 }

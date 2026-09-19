@@ -25,10 +25,19 @@ type SCGConfig struct {
 }
 
 // Load reads configuration from environment variables with sensible defaults.
+// The API key comes from SCG_API_KEY, or else from the credentials `scg
+// login` stored, when they were issued by the same platform.
 func Load() *SCGConfig {
+	baseURL := envOrDefault("SCG_PLATFORM_URL", "https://api.scg.data-insights.ai")
+	apiKey := os.Getenv("SCG_API_KEY")
+	if apiKey == "" {
+		if creds, err := LoadCredentials(); err == nil && creds.APIKey != "" && (creds.PlatformURL == "" || creds.PlatformURL == baseURL) {
+			apiKey = creds.APIKey
+		}
+	}
 	return &SCGConfig{
-		PlatformAPIKey:  os.Getenv("SCG_API_KEY"),
-		PlatformBaseURL: envOrDefault("SCG_PLATFORM_URL", "https://api.scg.data-insights.ai"),
+		PlatformAPIKey:  apiKey,
+		PlatformBaseURL: baseURL,
 		LogLevel:        envOrDefault("SCG_LOG_LEVEL", "info"),
 		LockfilePath:    envOrDefault("SCG_LOCKFILE", "scg.lock"),
 		WorkflowDir:     envOrDefault("SCG_WORKFLOW_DIR", ".github/workflows"),

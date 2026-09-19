@@ -104,15 +104,24 @@ All commands support `--json` flag (planned) for structured output:
 
 | Variable | Required | Purpose |
 |---|---|---|
-| `GITHUB_TOKEN` | Recommended | Avoids GitHub API rate limits (60/hr without, 5000/hr with) |
-| `SCG_API_KEY` | Optional | Enables SCG Platform (pre-computed hashes, curated profiles) |
+| `SCG_API_KEY` | Recommended | Raises the request budget from 20/hr (anonymous) to your plan's limit |
+| `SCG_PLATFORM_URL` | Optional | Platform endpoint; defaults to `https://api.scg.data-insights.ai` |
+
+`GITHUB_TOKEN` is **not** used and not needed. The CLI never calls GitHub,
+Docker Hub, npm or PyPI — all resolution goes through the SCG platform, which
+holds the registry credentials server-side.
 
 ### Exit codes
 
 | Code | Meaning | Agent action |
 |---|---|---|
-| 0 | Clean — no issues found | Proceed normally |
-| 1 | Issues found (drift, violations) | Report findings, halt pipeline |
+| 0 | Clean — everything verified | Proceed normally |
+| 1 | Finding — drift or a secret violation | Report findings, halt pipeline |
+| 2 | Operational — SCG could not complete the check | Retry; do **not** report as a finding |
+
+Exit code 2 means the platform was unreachable, the request budget was spent, or
+its data was too old to trust. Nothing was detected about the dependencies, so
+treating it as a detection turns an SCG outage into a false alarm.
 | 2 | Configuration error | Fix config, retry |
 
 ## Supported Ecosystems

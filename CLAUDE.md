@@ -48,8 +48,10 @@ SCG is a platform-only CLI. All resolution and profile queries go through the SC
 
 ```
 cmd/scg/           CLI entry point (stdlib flag, no frameworks)
+  exit.go          Exit-code taxonomy (0 clean / 1 finding / 2 operational)
+  sarif.go         SARIF 2.1.0 report for GitHub code scanning
 resolver/
-  resolver.go      Resolver interface, Resolution type, Ecosystem enum
+  resolver.go      Resolver interface, Resolution, Ecosystem, FreshnessReporter
 parser/
   parser.go        Parser interface, ToolRef, SecretRef, WorkflowFile
   workflow.go      GitHub Actions YAML parser
@@ -60,6 +62,7 @@ manifest/
   manifest.go      Lockfile data model (JSON)
   lock.go          ReadLockfile / WriteLockfile
   sign.go          Signer/Verifier interfaces, ed25519 implementation
+  trust.go         PlatformVerifier — pinned platform key, the trust anchor
   drift.go         DetectDrift — compare locked vs live
 scoper/
   env.go           ScanEnv(), LooksLikeSecret(), MatchSecrets()
@@ -81,6 +84,9 @@ internal/testutil  Test helpers
 
 ### Business Model — THE MOST IMPORTANT RULE
 - The platform (api.scg.data-insights.ai) is the ONLY resolver. Always. No exceptions.
+- The registry-calling resolvers now live in `sigma-scg-platform/registry`, not here.
+  `rho-scg/resolver` holds only the shared interface (Resolver, Resolution, Ecosystem,
+  FreshnessReporter). Do not reintroduce registry HTTP code into this repo.
 - The CLI NEVER calls GitHub, Docker Hub, PyPI, or npm APIs directly.
 - GITHUB_TOKEN is NOT used by the CLI. It is used by the platform's crawler on the server.
 - There is NO fallback to local resolution. If the platform is down, the check fails.
@@ -104,32 +110,50 @@ internal/testutil  Test helpers
 - Generic error messages outward, detailed logs inward
 - Run `govulncheck ./...` for dependency CVEs
 
+### Trust anchor — DO NOT WEAKEN
+- Lockfile signatures verify against `manifest.PlatformPublicKey`, compiled in.
+  NEVER verify against the key carried inside the lockfile: an attacker who can
+  edit `scg.lock` simply mints their own keypair and re-signs.
+- There is no local signing fallback. If the platform cannot sign, `scg init` fails.
+  An unverifiable signature is worse than none — it claims a property it lacks.
+- Only `ed25519-platform` is accepted. Never re-accept plain `ed25519`.
+- `manifest.CanonicalJSON` is the ONLY function that produces signing bytes.
+- Overriding the pinned key is build-time only (`-ldflags -X`), never an env var:
+  the threat model includes an attacker who can edit the workflow that sets it.
+
+### Failing closed
+- Drift (exit 1) and "SCG could not check" (exit 2) are different outcomes.
+  Since there is no fallback, conflating them turns a platform outage into a
+  false attack report in every customer's pipeline at once.
+- Stale platform data is NOT verified data. A digest that matches a lockfile
+  built from the same unrefreshed record proves nothing.
+- Secret patterns that fail to compile are a hard error, never a skip.
+- Installers verify checksums or refuse to install.
+
 ## Testing
 
 - TDD: write the failing test first, then implement
+- Tests must never touch the network. Inject a signer/resolver instead
+  (see `cmd/scg/signer_test.go`).
 - `go test ./...` before and after every change
 - `go test -race ./...` for concurrent code
 - Table-driven tests for edge cases
 - Every public function gets a direct test
-- Coverage gate: 80% per package
+- Coverage gate: `make cover-gate` (75% total; raise it, never lower it)
+- `make ci` runs fmt, vet, lint, build and race tests. `golangci-lint` must stay clean.
 
-## Current State (v0.1.30)
+## Current State (v0.1.32)
 
-- All 5 commands working: `init`, `check`, `update`, `scope`, `audit`
-- Both layers through the platform:
-  - `scg check` → platform `/v1/resolve` (hash verification)
-  - `scg scope` → platform `/v1/profile` (secret scoping)
-- Multi-ecosystem parsing: GitHub Actions, Docker, npm, PyPI
-  - `scg init` auto-discovers `package-lock.json`, `requirements.txt`, `Dockerfile` in repo root
-  - Per-ecosystem resolver routing via `buildResolvers()` map
-- No local resolvers. No GITHUB_TOKEN. No fallback.
-- Platform: api.scg.data-insights.ai (32,000+ tools, 30 profiles)
-- CLI install: scg.data-insights.ai
-- Quiet by default, `--verbose` for logs
-- 130 tests + 6 fuzz targets, race clean
-- Binary size: 6.4 MB (zero graph dependencies)
+- All 6 commands working: `init`, `check`, `update`, `scope`, `audit`, `intel`
+- Signatures anchored to the pinned platform key; no local fallback
+- `check` deduplicates references, resolves concurrently (max 8), and reports
+  stale platform data as unverified rather than clean
+- Exit codes 0/1/2; `--sarif` emits GitHub code-scanning findings
+- Atomic lockfile writes, size cap and schema validation on read
+- Platform client: retry with backoff, `Retry-After`, sentinel errors, User-Agent
+- Registry resolvers moved to the platform repo
+- `golangci-lint` clean, race clean, coverage 79%
 - Dependencies: golang.org/x/term, gopkg.in/yaml.v3 (all public)
-- Next: expand profile database (30 → hundreds)
 
 ## Session Protocol
 

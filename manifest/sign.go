@@ -31,7 +31,10 @@ func NewEd25519Signer(key ed25519.PrivateKey) *Ed25519Signer {
 func (s *Ed25519Signer) Sign(data []byte) (*Signature, error) {
 	sig := ed25519.Sign(s.privateKey, data)
 
-	pub := s.privateKey.Public().(ed25519.PublicKey)
+	pub, ok := s.privateKey.Public().(ed25519.PublicKey)
+	if !ok {
+		return nil, fmt.Errorf("signing key is not an ed25519 key")
+	}
 
 	return &Signature{
 		Algorithm: "ed25519",
@@ -70,11 +73,20 @@ func (v *Ed25519Verifier) Verify(data []byte, sig *Signature) error {
 	return nil
 }
 
-// canonicalJSON produces deterministic JSON for signing/verification.
-// Uses json.Marshal which serializes struct fields in definition order.
-// This function is the ONLY place that produces bytes for signing —
-// both SignLockfile and VerifyLockfile must use the same path.
-func canonicalJSON(lf *Lockfile) ([]byte, error) {
+// CanonicalJSON produces the deterministic bytes that a lockfile signature
+// covers: the whole document with the signature block removed.
+//
+// This is the ONLY place that produces bytes for signing or verification.
+// It is exported because the signing path in cmd/scg had grown its own inline
+// copy of this logic — a duplicate that happened to agree today and would have
+// silently invalidated every platform-signed lockfile in the field the first
+// time a field was added or reordered here.
+//
+// json.Marshal serialises struct fields in declaration order, which is stable
+// for a given build. Round-tripping through the struct is safe because
+// ReadLockfile rejects unknown fields, so nothing can be present in the file
+// that this form would drop.
+func CanonicalJSON(lf *Lockfile) ([]byte, error) {
 	stripped := *lf
 	stripped.Signature = nil
 	return json.Marshal(stripped)
@@ -82,7 +94,7 @@ func canonicalJSON(lf *Lockfile) ([]byte, error) {
 
 // SignLockfile signs a lockfile's content (excluding the signature field).
 func SignLockfile(lf *Lockfile, signer Signer) error {
-	data, err := canonicalJSON(lf)
+	data, err := CanonicalJSON(lf)
 	if err != nil {
 		return fmt.Errorf("marshal lockfile for signing: %w", err)
 	}
@@ -102,7 +114,7 @@ func VerifyLockfile(lf *Lockfile, verifier Verifier) error {
 		return fmt.Errorf("lockfile is not signed")
 	}
 
-	data, err := canonicalJSON(lf)
+	data, err := CanonicalJSON(lf)
 	if err != nil {
 		return fmt.Errorf("marshal lockfile for verification: %w", err)
 	}
