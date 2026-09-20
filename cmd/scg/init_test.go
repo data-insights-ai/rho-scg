@@ -87,12 +87,12 @@ func newMultiMockResolvers() map[resolver.Ecosystem]resolver.Resolver {
 
 	npmMock := &mockResolver{
 		resolutions: map[string]*resolver.Resolution{
-			"express@4.21.0": {
-				Original: "express@4.21.0", Hash: "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4",
+			"ms@2.1.3": {
+				Original: "ms@2.1.3", Hash: "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4",
 				Algorithm: "sha512", Source: "mock", ResolvedAt: now,
 			},
-			"lodash@4.17.21": {
-				Original: "lodash@4.17.21", Hash: "f6e5d4c3b2a1f6e5d4c3b2a1f6e5d4c3",
+			"uuid@11.1.0": {
+				Original: "uuid@11.1.0", Hash: "f6e5d4c3b2a1f6e5d4c3b2a1f6e5d4c3",
 				Algorithm: "sha512", Source: "mock", ResolvedAt: now,
 			},
 		},
@@ -100,16 +100,16 @@ func newMultiMockResolvers() map[resolver.Ecosystem]resolver.Resolver {
 
 	pypiMock := &mockResolver{
 		resolutions: map[string]*resolver.Resolution{
-			"requests@2.31.0": {
-				Original: "requests@2.31.0", Hash: "1a2b3c4d5e6f1a2b3c4d5e6f1a2b3c4d",
+			"httpx@0.28.1": {
+				Original: "httpx@0.28.1", Hash: "1a2b3c4d5e6f1a2b3c4d5e6f1a2b3c4d",
 				Algorithm: "sha256", Source: "mock", ResolvedAt: now,
 			},
 			"boto3@1.34.0": {
 				Original: "boto3@1.34.0", Hash: "6f5e4d3c2b1a6f5e4d3c2b1a6f5e4d3c",
 				Algorithm: "sha256", Source: "mock", ResolvedAt: now,
 			},
-			"flask@3.0.0": {
-				Original: "flask@3.0.0", Hash: "aabbccddaabbccddaabbccddaabbccdd",
+			"click@8.1.8": {
+				Original: "click@8.1.8", Hash: "aabbccddaabbccddaabbccddaabbccdd",
 				Algorithm: "sha256", Source: "mock", ResolvedAt: now,
 			},
 		},
