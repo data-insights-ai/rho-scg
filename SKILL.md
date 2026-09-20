@@ -64,7 +64,7 @@ SCG is designed to be consumed in multiple ways — not just as a CLI for humans
 Any tool, script, or agent can invoke `scg` as a subprocess and interpret exit codes + stdout. This is the simplest integration path. Exit code 0 = clean, 1 = finding, 2 = SCG could not complete (not a finding; retry).
 
 ### As a CI step
-GitHub Action (`data-insights-ai/scg-action@v1`), GitLab CI template (planned), or raw `curl | sh` in any CI system.
+GitHub Action (`data-insights-ai/rho-scg@v0.3.0`), GitLab CI template (planned), or raw `curl | sh` in any CI system.
 
 ### Via the SCG Platform API
 `GET /v1/resolve/{ecosystem}/{ref}`, `GET /v1/profile/{ecosystem}/{tool}`, `POST /v1/check` (server-side batch check; the CLI verifies locally against `/v1/resolve` and does not use it). REST API with JSON responses. Requires `SCG_API_KEY`.

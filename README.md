@@ -38,12 +38,12 @@ jobs:
       - uses: actions/checkout@v4
 
       # Verify all dependencies before anything runs
-      - uses: data-insights-ai/scg-action@v1
+      - uses: data-insights-ai/rho-scg@v0.3.0
         with:
           mode: check
 
       # Scope secrets before each sensitive step
-      - uses: data-insights-ai/scg-action@v1
+      - uses: data-insights-ai/rho-scg@v0.3.0
         with:
           mode: scope
           step-name: trivy-scan
