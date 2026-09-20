@@ -91,8 +91,8 @@ func newMultiMockResolvers() map[resolver.Ecosystem]resolver.Resolver {
 				Original: "ms@2.1.3", Hash: "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4",
 				Algorithm: "sha512", Source: "mock", ResolvedAt: now,
 			},
-			"uuid@11.1.0": {
-				Original: "uuid@11.1.0", Hash: "f6e5d4c3b2a1f6e5d4c3b2a1f6e5d4c3",
+			"uuid@13.0.0": {
+				Original: "uuid@13.0.0", Hash: "f6e5d4c3b2a1f6e5d4c3b2a1f6e5d4c3",
 				Algorithm: "sha512", Source: "mock", ResolvedAt: now,
 			},
 		},
