@@ -67,11 +67,6 @@ jobs:
       #   gh attestation verify scg-linux-amd64 --owner data-insights-ai
       - name: attest build provenance
         uses: actions/attest-build-provenance@v2
-        # GitHub stores attestations for public repositories (or paid
-        # plans) only; while this repository is private the step is
-        # allowed to fail and the release still ships with the cosign
-        # signature. Once public, drop continue-on-error.
-        continue-on-error: true
         with:
           subject-path: |
             dist/scg-*
