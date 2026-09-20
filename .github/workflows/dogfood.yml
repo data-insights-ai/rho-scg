@@ -28,4 +28,18 @@ jobs:
       - name: verify our own lockfile
         env:
           SCG_API_KEY: ${{ secrets.SCG_API_KEY }}
-        run: ./scg check --verbose
+        # A deploy restarts the platform for about a minute; a canary that
+        # lands in that minute sees "platform unavailable" (exit 2), which
+        # is an outage of ours, not a finding. One retry after 90 seconds
+        # tells the two apart; a second exit 2 is the alarm this job is for.
+        run: |
+          set +e
+          ./scg check --verbose
+          code=$?
+          if [ "$code" -eq 2 ]; then
+            echo "::notice::exit 2 (platform unavailable or stale); retrying once in 90 s"
+            sleep 90
+            ./scg check --verbose
+            code=$?
+          fi
+          exit "$code"
