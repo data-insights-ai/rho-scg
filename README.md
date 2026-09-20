@@ -316,7 +316,7 @@ result with the same exit code the terminal run would have. `check` and
 `audit` include the findings: `summary` (total, verified, drifted, unverified),
 `drift[]` (ecosystem, reference, both hashes, severity, detail) and
 `unverified[]`; `scope` includes `violations[]`, the tool and where its profile
-came from (`seed`, `seed+override`, `override`).
+came from (`seed` for a hand-written profile, `derived` for one read from the action's own manifest, plus `+override` when your organization's override applied).
 
 `init --watch` and `update --watch` upload the lockfile right after writing it.
 The repository name comes from `--repo`, `SCG_REPO`, `GITHUB_REPOSITORY`,
