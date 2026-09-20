@@ -1,0 +1,20 @@
+name: hijack demo
+# Manual: moves scg-demo-action's v1 tag, then runs the check. Needs a
+# secret DEMO_ACTION_TOKEN with write access to scg-demo-action.
+on:
+  workflow_dispatch:
+    inputs:
+      state:
+        description: 'on = hijack the tag, off = restore it'
+        required: true
+        default: 'on'
+jobs:
+  move-tag:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: data-insights-ai/scg-demo-action
+          token: ${{ secrets.DEMO_ACTION_TOKEN }}
+          fetch-depth: 0
+      - run: ./hijack.sh "${{ github.event.inputs.state }}"

@@ -1,0 +1,12 @@
+name: 'SCG demo action'
+description: 'A harmless composite action whose v1 tag the demo moves, the way a hijacked action would be moved.'
+inputs:
+  greeting:
+    description: 'What to print'
+    required: false
+    default: 'hello from v1'
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      run: echo "${{ inputs.greeting }}"
