@@ -6,7 +6,7 @@ Thank you for your interest in making CI/CD pipelines safer.
 
 ```bash
 git clone https://github.com/data-insights-ai/rho-scg.git
-cd supply-chain-guardian
+cd rho-scg
 make check   # build + test + vet
 ```
 
