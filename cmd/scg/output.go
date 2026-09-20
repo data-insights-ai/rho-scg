@@ -12,9 +12,12 @@ import (
 
 // JSONResult is the structured output format for --json mode.
 type JSONResult struct {
-	Command  string `json:"command"`
-	Status   string `json:"status"` // "ok", "drift_detected", "violations_found", "error"
-	ExitCode int    `json:"exit_code"`
+	// SchemaVersion changes when a field is renamed or removed; additions
+	// keep it. Consumers pin what they parse.
+	SchemaVersion int    `json:"schema_version"`
+	Command       string `json:"command"`
+	Status        string `json:"status"` // "ok", "drift_detected", "violations_found", "error"
+	ExitCode      int    `json:"exit_code"`
 
 	// Init fields
 	Pipelines int `json:"pipelines,omitempty"`
@@ -77,13 +80,36 @@ type JSONViolation struct {
 }
 
 // writeJSON writes the result as formatted JSON to stdout.
+// jsonSchemaVersion is the current --json output schema.
+const jsonSchemaVersion = 1
+
+// machineOut is where --json writes: stdout as it was before humanToStderr
+// diverted the human-readable report. A consumer parsing the output must
+// get the JSON document and nothing else.
+var machineOut io.Writer
+
+// humanToStderr sends everything the command prints for people to stderr
+// for the duration of fn, so --json leaves stdout to the JSON document.
+func humanToStderr(fn func()) {
+	saved := os.Stdout
+	machineOut = saved
+	os.Stdout = os.Stderr
+	defer func() { os.Stdout = saved; machineOut = nil }()
+	fn()
+}
+
 func writeJSON(result *JSONResult) {
+	result.SchemaVersion = jsonSchemaVersion
 	data, err := json.MarshalIndent(result, "", "  ")
 	if err != nil {
 		outf(os.Stderr, "json marshal error: %v\n", err)
 		return
 	}
-	outln(os.Stdout, string(data))
+	w := machineOut
+	if w == nil {
+		w = os.Stdout
+	}
+	outln(w, string(data))
 }
 
 // Output helpers.

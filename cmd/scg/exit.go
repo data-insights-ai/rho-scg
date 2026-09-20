@@ -37,9 +37,25 @@ func operational(format string, args ...any) error {
 }
 
 // exitCodeFor maps an error to the process exit code.
+// reportedError says a command already wrote its result (--json) and
+// what exit code it decided on; main exits with it and prints nothing
+// more. Returning it instead of calling os.Exit inside the command keeps
+// those paths testable.
+type reportedError struct {
+	code int
+	err  error
+}
+
+func (e *reportedError) Error() string { return e.err.Error() }
+func (e *reportedError) Unwrap() error { return e.err }
+
 func exitCodeFor(err error) int {
 	if err == nil {
 		return ExitClean
+	}
+	var reported *reportedError
+	if errors.As(err, &reported) {
+		return reported.code
 	}
 	var opErr *OperationalError
 	if errors.As(err, &opErr) {

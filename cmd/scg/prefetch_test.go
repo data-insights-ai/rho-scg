@@ -3,8 +3,11 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"sync/atomic"
 	"testing"
 
@@ -70,4 +73,56 @@ func TestDetectDrift_OneRequestPerLockfile(t *testing.T) {
 	if single.Load() != 3 || len(drift) != 1 {
 		t.Fatalf("fallback: %d single requests, drift %v", single.Load(), drift)
 	}
+}
+
+// In --json mode a command writes its result and hands main the exit code
+// instead of exiting itself, so the path is testable: drift is exit 1,
+// a plan refusal exit 2, and the schema is versioned.
+func TestRunCheck_JSONReportsAndReturnsTheExitCode(t *testing.T) {
+	for _, k := range []string{"SCG_REPO", "GITHUB_REPOSITORY", "CI_PROJECT_URL"} {
+		t.Setenv(k, "")
+	}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.URL.Path == "/v1/resolve/batch" {
+			http.NotFound(w, r)
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"hash": "moved", "algorithm": "sha1", "resolved_at": "2026-09-20T00:00:00Z", "stale": false, "age_seconds": 5})
+	}))
+	defer srv.Close()
+	t.Setenv("SCG_PLATFORM_URL", srv.URL)
+	t.Setenv("SCG_API_KEY", "")
+	t.Setenv("SCG_CONFIG_DIR", t.TempDir())
+	path := signedLockfile(t, t.TempDir())
+
+	out := captureStdout(t, func() {
+		err := runCheck(context.Background(), []string{"--lockfile", path, "--json"})
+		var reported *reportedError
+		if !errors.As(err, &reported) || reported.code != ExitFinding || exitCodeFor(err) != ExitFinding {
+			t.Fatalf("check --json with drift: %v", err)
+		}
+	})
+	var res JSONResult
+	if err := json.Unmarshal([]byte(out), &res); err != nil {
+		t.Fatalf("not JSON: %s", out)
+	}
+	if res.SchemaVersion != jsonSchemaVersion || res.Status != "drift_detected" || res.ExitCode != ExitFinding || len(res.Drift) != 1 || res.Summary == nil || res.Summary.Drifted != 1 {
+		t.Fatalf("result = %+v", res)
+	}
+}
+
+func captureStdout(t *testing.T, fn func()) string {
+	t.Helper()
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	old := os.Stdout
+	os.Stdout = w
+	defer func() { os.Stdout = old }()
+	fn()
+	_ = w.Close()
+	b, _ := io.ReadAll(r)
+	return string(b)
 }

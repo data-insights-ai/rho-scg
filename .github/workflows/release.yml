@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: write
+  attestations: write
   # Required for cosign keyless signing: the workflow's OIDC token is the
   # identity the signature is bound to.
   id-token: write
@@ -60,6 +61,16 @@ jobs:
             --output-signature checksums.txt.sig \
             --output-certificate checksums.txt.pem \
             checksums.txt
+
+      # SLSA build provenance: GitHub attests which workflow, commit and
+      # runner produced each binary. Verify with
+      #   gh attestation verify scg-linux-amd64 --owner data-insights-ai
+      - name: attest build provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: |
+            dist/scg-*
+            dist/checksums.txt
 
       - name: github release
         uses: softprops/action-gh-release@v2

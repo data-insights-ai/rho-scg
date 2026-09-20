@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Release binaries carry SLSA build provenance (`gh attestation verify
+  scg-linux-amd64 --owner data-insights-ai`), beside the cosign-signed
+  checksums.
+- `--json` output carries `schema_version` (1). Additions keep the number;
+  a rename or removal bumps it.
+- `SECURITY.md`.
+
+### Fixed
+
+- In `--json` mode the human-readable report (the "Signature verified"
+  line, the drift table) went to stdout with the JSON document, which made
+  the output unparseable. It goes to stderr now; stdout is the document.
+- Commands no longer call `os.Exit` from inside `--json` handling; they
+  return the exit code to `main`, so those paths are tested.
+
+### Removed
+
+- `examples/demo` (the tag-hijack demonstration repositories).
+
 ### Changed
 
 - A check, audit or init costs one platform request per ecosystem, not

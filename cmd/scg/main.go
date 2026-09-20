@@ -9,6 +9,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"log/slog"
@@ -69,6 +70,11 @@ func main() {
 	}
 
 	if err != nil {
+		var reported *reportedError
+		if errors.As(err, &reported) {
+			// --json already wrote the result, exit code included.
+			os.Exit(reported.code)
+		}
 		code := exitCodeFor(err)
 		fmt.Fprintf(os.Stderr, "error: %s\n", err)
 		if code == ExitOperational {
@@ -116,9 +122,16 @@ func runInit(ctx context.Context, args []string) error {
 	logger := makeLogger(*verbose)
 	resolvers := buildResolvers()
 
-	err = classifyDeadline(ctx, doInit(ctx, logger, *workflowDir, *lockfile, resolvers, newPlatformSigner()), limit)
-	if err == nil && *watch {
-		err = watchAfterWrite(ctx, *lockfile, *repoFlag)
+	run := func() {
+		err = classifyDeadline(ctx, doInit(ctx, logger, *workflowDir, *lockfile, resolvers, newPlatformSigner()), limit)
+		if err == nil && *watch {
+			err = watchAfterWrite(ctx, *lockfile, *repoFlag)
+		}
+	}
+	if *jsonOut {
+		humanToStderr(run)
+	} else {
+		run()
 	}
 	if *jsonOut {
 		result := &JSONResult{Command: "init", Status: "ok", ExitCode: 0}
@@ -133,7 +146,7 @@ func runInit(ctx context.Context, args []string) error {
 		}
 		writeJSON(result)
 		if err != nil {
-			os.Exit(result.ExitCode)
+			return &reportedError{code: result.ExitCode, err: err}
 		}
 		return nil
 	}
@@ -160,8 +173,16 @@ func runCheck(ctx context.Context, args []string) error {
 
 	logger := makeLogger(*verbose)
 
-	outcome, err := doCheckDetailed(ctx, logger, *lockfile, *sarif)
-	err = classifyDeadline(ctx, err, limit)
+	var outcome checkOutcome
+	run := func() {
+		outcome, err = doCheckDetailed(ctx, logger, *lockfile, *sarif)
+		err = classifyDeadline(ctx, err, limit)
+	}
+	if *jsonOut {
+		humanToStderr(run)
+	} else {
+		run()
+	}
 	if *jsonOut {
 		result := &JSONResult{Command: "check", Status: "ok", ExitCode: 0}
 		result.Summary = &JSONSummary{Total: outcome.Total, Verified: outcome.Verified, Drifted: len(outcome.Results), Unverified: len(outcome.Warnings)}
@@ -178,7 +199,7 @@ func runCheck(ctx context.Context, args []string) error {
 		}
 		writeJSON(result)
 		if err != nil {
-			os.Exit(result.ExitCode)
+			return &reportedError{code: result.ExitCode, err: err}
 		}
 		return nil
 	}
@@ -231,7 +252,14 @@ func runScope(ctx context.Context, args []string) error {
 
 	logger := makeLogger(*verbose)
 
-	outcome, err := doScopeDetailed(ctx, logger, *workflowDir, *stepName, *sanitize)
+	var outcome scopeOutcome
+	var err error
+	run := func() { outcome, err = doScopeDetailed(ctx, logger, *workflowDir, *stepName, *sanitize) }
+	if *jsonOut {
+		humanToStderr(run)
+	} else {
+		run()
+	}
 	if *jsonOut {
 		result := &JSONResult{Command: "scope", Status: "ok", ExitCode: 0, Tool: outcome.Tool, ProfileSource: outcome.Source}
 		for _, v := range outcome.Violations {
@@ -248,7 +276,7 @@ func runScope(ctx context.Context, args []string) error {
 		}
 		writeJSON(result)
 		if err != nil {
-			os.Exit(result.ExitCode)
+			return &reportedError{code: result.ExitCode, err: err}
 		}
 		return nil
 	}
@@ -276,8 +304,16 @@ func runAudit(ctx context.Context, args []string) error {
 	logger := makeLogger(*verbose)
 	resolvers := buildResolvers()
 
-	outcome, err := doAuditDetailed(ctx, logger, *workflowDir, *lockfile, resolvers)
-	err = classifyDeadline(ctx, err, limit)
+	var outcome auditOutcome
+	run := func() {
+		outcome, err = doAuditDetailed(ctx, logger, *workflowDir, *lockfile, resolvers)
+		err = classifyDeadline(ctx, err, limit)
+	}
+	if *jsonOut {
+		humanToStderr(run)
+	} else {
+		run()
+	}
 	if *jsonOut {
 		result := &JSONResult{Command: "audit", Status: "ok", ExitCode: 0}
 		result.AuditDrift = jsonDrift(outcome.Drift)
@@ -296,7 +332,7 @@ func runAudit(ctx context.Context, args []string) error {
 		}
 		writeJSON(result)
 		if err != nil {
-			os.Exit(result.ExitCode)
+			return &reportedError{code: result.ExitCode, err: err}
 		}
 		return nil
 	}
