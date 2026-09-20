@@ -34,6 +34,19 @@ func NewPlatformResolver(client *Client, eco resolver.Ecosystem) *PlatformResolv
 	}
 }
 
+// Prefetch asks the platform for every reference at once (one request)
+// so the Resolve calls that follow are served from the cache. Errors are
+// not fatal: a platform without the batch endpoint, or a failed batch,
+// leaves Resolve to ask one by one.
+func (r *PlatformResolver) Prefetch(ctx context.Context, references []string) error {
+	refs := make([]BatchRef, 0, len(references))
+	for _, ref := range references {
+		refs = append(refs, BatchRef{Ecosystem: string(r.ecosystem), Reference: ref})
+	}
+	_, err := r.client.ResolveBatch(ctx, refs)
+	return err
+}
+
 // Freshness reports whether the platform's answer for reference was stale.
 func (r *PlatformResolver) Freshness(reference string) (bool, time.Duration) {
 	r.mu.Lock()

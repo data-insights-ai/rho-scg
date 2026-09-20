@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- A check, audit or init costs one platform request per ecosystem, not
+  one per tool: the references are sent to `POST /v1/resolve/batch` first
+  and the per-tool lookups come from the cache. Against an older platform
+  without the endpoint the CLI asks one by one as before. Anonymous use
+  (20 requests an hour per IP) now covers twenty runs, not two.
+- Parser fixtures list current, advisory-free packages; the Dependabot
+  exceptions for them are gone.
+
 ## [0.3.0] - 2026-09-19
 
 The tags v0.2.0 and v0.2.1 were cut in March before 0.1.30 to 0.1.32; this

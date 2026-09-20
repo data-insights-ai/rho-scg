@@ -28,6 +28,19 @@ type ResolveResponse struct {
 	FreshnessBudgetSeconds int64 `json:"freshness_budget_seconds"`
 }
 
+// BatchRef names one reference to resolve.
+type BatchRef struct {
+	Ecosystem string `json:"ecosystem"`
+	Reference string `json:"reference"`
+}
+
+// BatchItem is one answer of POST /v1/resolve/batch: the resolution, or
+// why there is none.
+type BatchItem struct {
+	ResolveResponse
+	Error string `json:"error,omitempty"`
+}
+
 // ProfileResponse is the platform's response for a profile request.
 type ProfileResponse struct {
 	Tool             string          `json:"tool"`

@@ -196,6 +196,11 @@ func resolveUnique(
 	var wg sync.WaitGroup
 	sem := make(chan struct{}, maxConcurrentResolves)
 
+	// One request per ecosystem for the whole lockfile, so a CI run costs
+	// one call against the rate limit instead of one per tool. The
+	// per-reference calls below are then answered from the cache.
+	prefetch(ctx, refs, resolvers, log)
+
 	for _, u := range refs {
 		wg.Add(1)
 		go func(u uniqueRef) {
@@ -246,6 +251,27 @@ func resolveUnique(
 
 	wg.Wait()
 	return results
+}
+
+// prefetcher is a resolver that can answer many references in one call.
+type prefetcher interface {
+	Prefetch(ctx context.Context, references []string) error
+}
+
+func prefetch(ctx context.Context, refs []uniqueRef, resolvers map[resolver.Ecosystem]resolver.Resolver, log *slog.Logger) {
+	byEco := map[resolver.Ecosystem][]string{}
+	for _, u := range refs {
+		byEco[resolver.Ecosystem(u.Ecosystem)] = append(byEco[resolver.Ecosystem(u.Ecosystem)], u.Reference)
+	}
+	for eco, list := range byEco {
+		p, ok := resolvers[eco].(prefetcher)
+		if !ok || len(list) < 2 {
+			continue
+		}
+		if err := p.Prefetch(ctx, list); err != nil && log != nil {
+			log.Info("batch resolve unavailable; resolving one by one", "ecosystem", eco, "err", err)
+		}
+	}
 }
 
 // detectDriftWithPartialFailure resolves each distinct reference once and

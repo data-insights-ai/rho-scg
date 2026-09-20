@@ -116,7 +116,7 @@ The tool hasn't been indexed by the platform yet. The crawler indexes tools with
 Run `scg init` to regenerate and sign the lockfile.
 
 ### Rate limiting
-Anonymous access: 20 requests/hour. Run `scg login` or set `SCG_API_KEY` to use your organization's limit (100/hour on Free, 5,000 on Pro, 50,000 on Enterprise, shared by all keys of the organization).
+Anonymous access: 20 requests an hour per IP, and a check is one request however many tools it verifies. Run `scg login` or set `SCG_API_KEY` to use your organization's limit (100/hour on Free, 5,000 on Pro, 50,000 on Enterprise, shared by all keys of the organization).
 
 ## Watching a repository
 

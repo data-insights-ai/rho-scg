@@ -330,7 +330,7 @@ Zero-config by default. Optional environment variables:
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `SCG_API_KEY` | (none) | API key of your organization; without it `scg login` credentials are used, else anonymous (20 requests/hour) |
+| `SCG_API_KEY` | (none) | API key of your organization; without it `scg login` credentials are used, else anonymous (20 requests an hour per IP; a check is one request) |
 | `SCG_REPO` | (detected) | Repository name for `watch`, e.g. `github.com/acme/app` |
 | `SCG_PLATFORM_URL` | `https://api.scg.data-insights.ai` | Platform API endpoint |
 | `SCG_LOCKFILE` | `scg.lock` | Lockfile path |

@@ -132,6 +132,36 @@ func (c *Client) Resolve(ctx context.Context, ecosystem, reference string) (*Res
 	return &resp, nil
 }
 
+// ResolveBatch resolves many references in one request, which is one
+// request against the caller's rate limit, and primes the cache so the
+// per-reference Resolve calls that follow cost nothing. An older platform
+// without the endpoint answers 404 and the caller falls back to one
+// request per reference.
+func (c *Client) ResolveBatch(ctx context.Context, refs []BatchRef) ([]BatchItem, error) {
+	if len(refs) == 0 {
+		return nil, nil
+	}
+	body, err := json.Marshal(map[string]any{"refs": refs})
+	if err != nil {
+		return nil, err
+	}
+	var out struct {
+		Results []BatchItem `json:"results"`
+	}
+	if err := c.post(ctx, "/v1/resolve/batch", body, &out); err != nil {
+		return nil, err
+	}
+	for i := range out.Results {
+		item := out.Results[i]
+		if item.Error != "" || item.Hash == "" {
+			continue
+		}
+		resp := item.ResolveResponse
+		c.setCache("resolve:"+item.Ecosystem+":"+item.Reference, &resp)
+	}
+	return out.Results, nil
+}
+
 // FetchProfile fetches a curated security profile from the platform.
 func (c *Client) FetchProfile(ctx context.Context, ecosystem, reference string) (*ProfileResponse, error) {
 	cacheKey := "profile:" + ecosystem + ":" + reference
