@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `scg login --password --email you@company.com` signs a machine in with
+  an address and a password instead of the browser. The device flow needs
+  somebody to approve a code in a browser, which suits a laptop and suits
+  nothing else: an agent setting a project up, a CI image being built or
+  a container with no browser and no mailbox could not sign in at all,
+  and a person had to fetch a key and hand it over. The command signs in,
+  mints one API key with the session it gets back, and stores that key
+  where the device flow stores its own. The password comes from
+  `SCG_PASSWORD` or from a prompt that does not echo, never from a flag,
+  so no secret reaches the shell history or a process listing; it is not
+  stored anywhere afterwards. Set the password once under Password in the
+  account page.
+
 ## [0.4.0] - 2026-09-21
 
 ### Added

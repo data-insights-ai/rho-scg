@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/data-insights-ai/rho-scg/internal/config"
@@ -25,6 +26,8 @@ import (
 func runLogin(ctx context.Context, args []string) error {
 	fs := flag.NewFlagSet("login", flag.ContinueOnError)
 	noBrowser := fs.Bool("no-browser", false, "print the link instead of opening the browser")
+	withPassword := fs.Bool("password", false, "sign in with an address and password instead of the browser")
+	email := fs.String("email", "", "the address to sign in with (only with --password)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -33,6 +36,18 @@ func runLogin(ctx context.Context, args []string) error {
 		return fmt.Errorf("refusing to sign in over %s: use https", cfg.PlatformBaseURL)
 	}
 	client := &http.Client{Timeout: 30 * time.Second}
+	if *withPassword {
+		// Deliberately no --password=value: a flag lands in the shell
+		// history and in every process listing on the machine.
+		password, err := readPassword(os.Stdin, os.Stdout)
+		if err != nil {
+			return fmt.Errorf("could not read the password: %w", err)
+		}
+		return loginWithPassword(ctx, client, cfg.PlatformBaseURL, strings.TrimSpace(*email), password, os.Stdout)
+	}
+	if *email != "" {
+		return errors.New("--email only applies to scg login --password")
+	}
 	return login(ctx, client, cfg.PlatformBaseURL, *noBrowser, os.Stdout)
 }
 

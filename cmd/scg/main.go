@@ -372,7 +372,8 @@ Commands:
   watch     Upload scg.lock so the platform watches its tools for drift (per repository)
   unwatch   Stop watching this repository (--repo NAME, or --all)
   watches   List what your organization watches
-  login     Sign this machine in to your SCG organization (opens the browser)
+  login     Sign this machine in to your SCG organization (opens the browser;
+            --password --email ADDR for a machine that has neither browser nor mail)
   logout    Forget the key stored by login
   version   Print version information
 
@@ -388,6 +389,8 @@ Environment:
   SCG_API_KEY        SCG Platform API key (CI; overrides the key stored by login)
   SCG_CONFIG_DIR     Where login stores credentials (default: the OS config dir, scg/)
   SCG_PLATFORM_URL   Platform URL (default: https://api.scg.data-insights.ai)
+  SCG_PASSWORD       Password for scg login --password, so no secret reaches the
+                     shell history or a process listing
 
 Examples:
   scg init                          # scan and lock all dependencies
