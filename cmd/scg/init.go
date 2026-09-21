@@ -64,13 +64,15 @@ func doInit(ctx context.Context, logger *slog.Logger, projectRoot, workflowDir, 
 	}
 
 	// Supported project files in the project root: package-lock.json,
-	// pnpm-lock.yaml, requirements*.txt, Dockerfile.
+	// pnpm-lock.yaml, poetry.lock, uv.lock, Pipfile.lock, requirements*.txt,
+	// Dockerfile.
 	lockfilePaths := discoverLockfiles(root)
 	if len(lockfilePaths) > 0 {
 		logger.Info("discovered project files", "count", len(lockfilePaths))
 		parsers := []parser.Parser{
 			parser.NewNPMPackageParser(),
 			parser.NewPNPMLockParser(),
+			parser.NewPythonLockParser(),
 			parser.NewPyPIRequirementsParser(),
 			parser.NewDockerfileParser(),
 		}
@@ -89,7 +91,8 @@ func doInit(ctx context.Context, logger *slog.Logger, projectRoot, workflowDir, 
 	if len(uniqueTools) == 0 {
 		return fmt.Errorf("no supported dependencies found in %q\n"+
 			"scg reads .github/workflows/*.yml, package-lock.json, pnpm-lock.yaml, "+
-			"requirements*.txt and Dockerfile. Run from your project root, or pass "+
+			"poetry.lock, uv.lock, Pipfile.lock, requirements*.txt and Dockerfile. "+
+			"Run from your project root, or pass "+
 			"-root; an empty lockfile would claim a protection it does not give", root)
 	}
 
@@ -372,6 +375,7 @@ func discoverLockfiles(repoRoot string) []string {
 		name := e.Name()
 		lower := strings.ToLower(name)
 		isLockfile := name == "package-lock.json" || name == "pnpm-lock.yaml" ||
+			name == "poetry.lock" || name == "uv.lock" || name == "Pipfile.lock" ||
 			name == "requirements.txt" ||
 			(strings.HasPrefix(name, "requirements-") && strings.HasSuffix(name, ".txt")) ||
 			lower == "dockerfile" ||
@@ -457,7 +461,40 @@ func printInitSummary(w io.Writer, workflows []*parser.WorkflowFile, resolved ma
 		}
 		outf(w, "\n  These dependencies are not in the baseline and are not checked.\n")
 	}
+	if note := pythonCoverageNote(workflows); note != "" {
+		outf(w, "%s", note)
+	}
 	outln(w)
+}
+
+// pythonCoverageNote warns a project whose only Python input is a
+// requirements file. That file names what somebody asked for, not what pip
+// installed: four requirements can become two hundred packages in the
+// environment, and the baseline covers the four. Saying nothing would let
+// a user believe their Python dependencies are checked when almost none of
+// them are. A lock file is the fix, and it is one command away.
+func pythonCoverageNote(workflows []*parser.WorkflowFile) string {
+	requirements, locked := 0, false
+	for _, wf := range workflows {
+		switch filepath.Base(wf.Path) {
+		case "poetry.lock", "uv.lock", "Pipfile.lock":
+			locked = true
+		case "requirements.txt":
+			requirements += len(wf.Tools)
+		default:
+			if strings.HasPrefix(filepath.Base(wf.Path), "requirements-") {
+				requirements += len(wf.Tools)
+			}
+		}
+	}
+	if locked || requirements == 0 {
+		return ""
+	}
+	return fmt.Sprintf("\n  Python coverage: this baseline records the %d requirement(s) you pinned,\n"+
+		"  not the packages pip installs underneath them. Those are usually the\n"+
+		"  larger number and are not checked. Produce a lock file and rerun scg init:\n"+
+		"    uv lock            (or)    pip-compile requirements.in\n"+
+		"    poetry lock        (or)    pipenv lock\n", requirements)
 }
 
 func minHashLen(l int) int {
