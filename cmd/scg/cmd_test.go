@@ -46,7 +46,7 @@ func TestDoCheck_CleanRun(t *testing.T) {
 	defer srv.Close()
 	t.Setenv("SCG_PLATFORM_URL", srv.URL)
 
-	if err := doCheck(context.Background(), quietLogger(), path, ""); err != nil {
+	if err := doCheck(context.Background(), quietLogger(), "", "", path, ""); err != nil {
 		t.Fatalf("a clean lockfile must verify: %v", err)
 	}
 }
@@ -63,7 +63,7 @@ func TestDoCheck_RejectsUnsignedLockfile(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err := doCheck(context.Background(), quietLogger(), path, "")
+	err := doCheck(context.Background(), quietLogger(), "", "", path, "")
 	if err == nil {
 		t.Fatal("an unsigned lockfile must not verify")
 	}
@@ -99,14 +99,14 @@ func TestDoCheck_RejectsForeignSignature(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := doCheck(context.Background(), quietLogger(), path, ""); err == nil {
+	if err := doCheck(context.Background(), quietLogger(), "", "", path, ""); err == nil {
 		t.Fatal("a lockfile signed by an attacker-generated key must not verify")
 	}
 }
 
 // A missing lockfile is an ordinary, explainable failure.
 func TestDoCheck_MissingLockfile(t *testing.T) {
-	err := doCheck(context.Background(), quietLogger(), filepath.Join(t.TempDir(), "absent.lock"), "")
+	err := doCheck(context.Background(), quietLogger(), "", "", filepath.Join(t.TempDir(), "absent.lock"), "")
 	if err == nil {
 		t.Fatal("a missing lockfile must be an error")
 	}
@@ -502,7 +502,7 @@ func TestDoCheck_WritesSARIFFile(t *testing.T) {
 	t.Setenv("SCG_PLATFORM_URL", srv.URL)
 
 	// Drift is expected; the report must be written regardless.
-	_ = doCheck(context.Background(), quietLogger(), lockPath, sarifPath)
+	_ = doCheck(context.Background(), quietLogger(), "", "", lockPath, sarifPath)
 
 	data, err := os.ReadFile(sarifPath)
 	if err != nil {

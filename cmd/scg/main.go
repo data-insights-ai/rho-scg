@@ -157,6 +157,8 @@ func runInit(ctx context.Context, args []string) error {
 func runCheck(ctx context.Context, args []string) error {
 	fs := flag.NewFlagSet("check", flag.ExitOnError)
 	lockfile := fs.String("lockfile", "scg.lock", "lockfile path")
+	rootFlag := fs.String("root", "", "project root to compare against the baseline (default: the working directory)")
+	workflowDir := fs.String("workflows", ".github/workflows", "workflow directory to scan")
 	jsonOut := fs.Bool("json", false, "output results as JSON")
 	sarif := fs.String("sarif", "", "write findings as SARIF to this path (for GitHub code scanning)")
 	timeout := fs.String("timeout", "", "overall time limit, e.g. 90s or 5m (0 disables)")
@@ -176,7 +178,7 @@ func runCheck(ctx context.Context, args []string) error {
 
 	var outcome checkOutcome
 	run := func() {
-		outcome, err = doCheckDetailed(ctx, logger, *lockfile, *sarif)
+		outcome, err = doCheckDetailed(ctx, logger, *rootFlag, *workflowDir, *lockfile, *sarif)
 		err = classifyDeadline(ctx, err, limit)
 	}
 	if *jsonOut {

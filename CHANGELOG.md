@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `scg check` compares what the project declares now with what the
+  baseline recorded, and reports a dependency the baseline never reviewed
+  or one it recorded that the project has dropped. Drift iterates the
+  recorded entries, so a dependency added after the baseline was written
+  never reached it: every entry could verify while the build pulled
+  something nobody reviewed. Identity is the ecosystem and the reference
+  together, never the hash alone. `-root` and `-workflows` say where the
+  project is; when no project files are readable from there the
+  comparison is reported as not performed rather than as removals.
+
 ### Changed
 
 - `scg init` no longer requires CI configuration. A missing or empty

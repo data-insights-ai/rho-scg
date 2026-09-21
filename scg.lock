@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generated_at": "2026-09-19T21:16:38.76569Z",
+  "generated_at": "2026-09-21T06:45:21.385149Z",
   "pipelines": [
     {
       "path": ".github/workflows/ci.yml",
@@ -14,7 +14,7 @@
           "tools": [
             {
               "ecosystem": "github_action",
-              "reference": "actions/checkout@v4",
+              "reference": "actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
               "hash": "11d5960a326750d5838078e36cf38b85af677262",
               "algorithm": "sha1",
               "source": "platform:api.github.com"
@@ -28,7 +28,7 @@
           "tools": [
             {
               "ecosystem": "github_action",
-              "reference": "aquasecurity/trivy-action@v0.35.0",
+              "reference": "aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1",
               "hash": "57a97c7e7821a5776cebc9bb87c984fa69cba8f1",
               "algorithm": "sha1",
               "source": "platform:api.github.com"
@@ -48,7 +48,7 @@
           "tools": [
             {
               "ecosystem": "github_action",
-              "reference": "actions/checkout@v4",
+              "reference": "actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
               "hash": "11d5960a326750d5838078e36cf38b85af677262",
               "algorithm": "sha1",
               "source": "platform:api.github.com"
@@ -62,7 +62,7 @@
           "tools": [
             {
               "ecosystem": "github_action",
-              "reference": "actions/setup-go@v5",
+              "reference": "actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff",
               "hash": "40f1582b2485089dde7abd97c1529aa768e1baff",
               "algorithm": "sha1",
               "source": "platform:api.github.com"
@@ -94,7 +94,7 @@
           "tools": [
             {
               "ecosystem": "github_action",
-              "reference": "golangci/golangci-lint-action@v8",
+              "reference": "golangci/golangci-lint-action@4afd733a84b1f43292c63897423277bb7f4313a9",
               "hash": "4afd733a84b1f43292c63897423277bb7f4313a9",
               "algorithm": "sha1",
               "source": "platform:api.github.com"
@@ -120,7 +120,7 @@
           "tools": [
             {
               "ecosystem": "github_action",
-              "reference": "actions/checkout@v4",
+              "reference": "actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
               "hash": "11d5960a326750d5838078e36cf38b85af677262",
               "algorithm": "sha1",
               "source": "platform:api.github.com"
@@ -134,7 +134,7 @@
           "tools": [
             {
               "ecosystem": "github_action",
-              "reference": "actions/setup-go@v5",
+              "reference": "actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff",
               "hash": "40f1582b2485089dde7abd97c1529aa768e1baff",
               "algorithm": "sha1",
               "source": "platform:api.github.com"
@@ -173,7 +173,7 @@
           "tools": [
             {
               "ecosystem": "github_action",
-              "reference": "actions/checkout@v4",
+              "reference": "actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
               "hash": "11d5960a326750d5838078e36cf38b85af677262",
               "algorithm": "sha1",
               "source": "platform:api.github.com"
@@ -187,7 +187,7 @@
           "tools": [
             {
               "ecosystem": "github_action",
-              "reference": "actions/setup-go@v5",
+              "reference": "actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff",
               "hash": "40f1582b2485089dde7abd97c1529aa768e1baff",
               "algorithm": "sha1",
               "source": "platform:api.github.com"
@@ -226,7 +226,7 @@
           "tools": [
             {
               "ecosystem": "github_action",
-              "reference": "actions/checkout@v4",
+              "reference": "actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
               "hash": "11d5960a326750d5838078e36cf38b85af677262",
               "algorithm": "sha1",
               "source": "platform:api.github.com"
@@ -240,7 +240,7 @@
           "tools": [
             {
               "ecosystem": "github_action",
-              "reference": "actions/setup-go@v5",
+              "reference": "actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff",
               "hash": "40f1582b2485089dde7abd97c1529aa768e1baff",
               "algorithm": "sha1",
               "source": "platform:api.github.com"
@@ -272,7 +272,7 @@
           "tools": [
             {
               "ecosystem": "github_action",
-              "reference": "sigstore/cosign-installer@v3",
+              "reference": "sigstore/cosign-installer@398d4b0eeef1380460a10c8013a76f728fb906ac",
               "hash": "398d4b0eeef1380460a10c8013a76f728fb906ac",
               "algorithm": "sha1",
               "source": "platform:api.github.com"
@@ -286,15 +286,29 @@
           "tools": null
         },
         {
-          "name": "github release",
+          "name": "attest build provenance",
           "job": "release",
           "order": 7,
           "tools": [
             {
               "ecosystem": "github_action",
-              "reference": "softprops/action-gh-release@v2",
+              "reference": "actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be",
+              "hash": "e8998f949152b193b063cb0ec769d69d929409be",
+              "algorithm": "sha1",
+              "source": "platform:api.github.com"
+            }
+          ]
+        },
+        {
+          "name": "github release",
+          "job": "release",
+          "order": 8,
+          "tools": [
+            {
+              "ecosystem": "github_action",
+              "reference": "softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65",
               "hash": "3bb12739c298aeb8a4eeaf626c5b8d85266b0e65",
-              "algorithm": "sha256",
+              "algorithm": "sha1",
               "source": "platform:api.github.com"
             }
           ]
@@ -304,7 +318,7 @@
   ],
   "signature": {
     "algorithm": "ed25519-platform",
-    "value": "RpZzel4OXyfuuurFmagjBcCTETl73Um75YIu1E0+KuCl1PO2AZRJZegSDa6LhcNTKZb5hFmwQCyUZaOOHzyQAQ==",
+    "value": "+/7VSaKaaAmMVOOPWebcYj3y36FDkfFjLGa9Ga2RE7bBBYmocodqdaouksrZs4/uCmNMZVGHsFZmDuP2TgaXBg==",
     "public_key": "Z+U1HXD+1LrnVdYXDR/MhuYaEApwtN5+wYkn6VeosWU="
   }
 }

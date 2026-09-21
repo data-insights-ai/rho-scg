@@ -139,7 +139,7 @@ func TestDoCheck_HonoursDeadline(t *testing.T) {
 	defer cancel()
 
 	start := time.Now()
-	err := classifyDeadline(ctx, doCheck(ctx, quietLogger(), path, ""), 300*time.Millisecond)
+	err := classifyDeadline(ctx, doCheck(ctx, quietLogger(), "", "", path, ""), 300*time.Millisecond)
 	elapsed := time.Since(start)
 
 	if err == nil {

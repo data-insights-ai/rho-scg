@@ -300,7 +300,7 @@ The SCG Platform at `api.scg.data-insights.ai` continuously crawls and pre-compu
 | Command | Purpose | Exit Code |
 |---|---|---|
 | `scg init` | Scan workflows, resolve all dependencies, write `scg.lock` | 0 = success, 2 = operational |
-| `scg check` | Validate `scg.lock` against live state | 0 = clean, 1 = drift, 2 = operational |
+| `scg check` | Verify the baseline signature, compare the project's current dependencies with the baseline, and compare the recorded entries with live state | 0 = clean, 1 = drift or a dependency outside the baseline, 2 = operational |
 | `scg update` | Re-resolve all dependencies, update `scg.lock` | 0 = success, 2 = operational |
 | `scg scope --step NAME` | Report which forbidden secrets a step can see (`--sanitize` clears them inside scg only) | 0 = clean, 1 = violations, 2 = operational |
 | `scg audit` | Full security report (drift + secret exposure) | 0 = clean, 1 = issues, 2 = operational |

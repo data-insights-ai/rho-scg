@@ -24,14 +24,18 @@ type checkOutcome struct {
 	Warnings []string
 	Total    int
 	Verified int
+	// Selection is what the project declares that the baseline does not
+	// record, and the reverse. A baseline that no longer describes the
+	// project is not a baseline, however well its own entries verify.
+	Selection []selectionChange
 }
 
-func doCheck(ctx context.Context, logger *slog.Logger, lockfilePath, sarifPath string) error {
-	_, err := doCheckDetailed(ctx, logger, lockfilePath, sarifPath)
+func doCheck(ctx context.Context, logger *slog.Logger, projectRoot, workflowDir, lockfilePath, sarifPath string) error {
+	_, err := doCheckDetailed(ctx, logger, projectRoot, workflowDir, lockfilePath, sarifPath)
 	return err
 }
 
-func doCheckDetailed(ctx context.Context, logger *slog.Logger, lockfilePath, sarifPath string) (checkOutcome, error) {
+func doCheckDetailed(ctx context.Context, logger *slog.Logger, projectRoot, workflowDir, lockfilePath, sarifPath string) (checkOutcome, error) {
 	var out checkOutcome
 	// 1. Read lockfile.
 	lf, err := manifest.ReadLockfile(lockfilePath)
@@ -58,14 +62,28 @@ func doCheckDetailed(ctx context.Context, logger *slog.Logger, lockfilePath, sar
 	// 3. Build resolvers for ALL ecosystems.
 	resolvers := buildResolvers()
 
-	// 4. Detect drift (continues on per-tool errors).
+	// 4. Compare what the project declares now with what was reviewed.
+	//
+	// Drift iterates the baseline, so a dependency added after the baseline
+	// was written never reaches it. This comparison is the one that notices.
+	declared, selErr := declaredDependencies(projectRoot, workflowDir)
+	switch {
+	case selErr != nil:
+		printWarning(os.Stdout, "project files could not be read (%v); only the recorded entries were checked", selErr)
+	case len(declared) == 0:
+		printWarning(os.Stdout, "no project files found from here; only the recorded entries were checked")
+	default:
+		out.Selection = compareSelection(declared, lf)
+	}
+
+	// 5. Detect drift (continues on per-tool errors).
 	results, warnings, err := detectDriftWithPartialFailure(ctx, lf, resolvers, logger)
 	if err != nil {
 		return out, fmt.Errorf("drift detection: %w", err)
 	}
 	out.Results, out.Warnings = results, warnings
 
-	// 5. Emit SARIF before reporting, so the findings reach GitHub code
+	// 6. Emit SARIF before reporting, so the findings reach GitHub code
 	// scanning even on the paths below that return an error.
 	if sarifPath != "" {
 		if err := emitSARIF(sarifPath, lockfilePath, results, warnings); err != nil {
@@ -73,12 +91,12 @@ func doCheckDetailed(ctx context.Context, logger *slog.Logger, lockfilePath, sar
 		}
 	}
 
-	// 6. Report warnings (tools that couldn't be resolved).
+	// 7. Report warnings (tools that couldn't be resolved).
 	for _, w := range warnings {
 		printWarning(os.Stdout, "%s", w)
 	}
 
-	// 7. Count what was actually verified vs skipped.
+	// 8. Count what was actually verified vs skipped.
 	totalTools := 0
 	for _, p := range lf.Pipelines {
 		for _, s := range p.Steps {
@@ -96,6 +114,13 @@ func doCheckDetailed(ctx context.Context, logger *slog.Logger, lockfilePath, sar
 		return out, operational("verification failed: 0 of %d tools checked", totalTools)
 	}
 
+	// A baseline that no longer matches the project is reported before
+	// drift: comparing yesterday's entries says nothing about a dependency
+	// added today.
+	if len(out.Selection) > 0 {
+		printSelectionChanges(os.Stderr, out.Selection)
+	}
+
 	// Report results.
 	if len(results) == 0 {
 		outln(os.Stdout)
@@ -109,6 +134,9 @@ func doCheckDetailed(ctx context.Context, logger *slog.Logger, lockfilePath, sar
 			// not look. Reporting it as a finding is what made an outage
 			// indistinguishable from an attack.
 			return out, operational("incomplete verification: %d of %d tools could not be checked", len(warnings), totalTools)
+		}
+		if len(out.Selection) > 0 {
+			return out, fmt.Errorf("%d dependency change(s) outside the reviewed baseline", len(out.Selection))
 		}
 		printSuccess(os.Stdout, "All %d tool entries verified, no drift detected.", totalTools)
 		outln(os.Stdout)
@@ -359,4 +387,22 @@ func emitSARIF(path, lockfilePath string, drift []manifest.DriftResult, warnings
 		return err
 	}
 	return f.Close()
+}
+
+// printSelectionChanges reports dependencies the project declares that the
+// baseline never recorded, and recorded entries the project dropped.
+func printSelectionChanges(w *os.File, changes []selectionChange) {
+	outf(w, "\n  %s\n\n", red(bold("DEPENDENCIES OUTSIDE THE REVIEWED BASELINE")))
+	for _, c := range changes {
+		switch c.Kind {
+		case "added":
+			printFailure(w, "not in the baseline: %s (%s)", c.Reference, c.Ecosystem)
+			if c.Where != "" {
+				outf(w, "      Declared in: %s\n", dim(c.Where))
+			}
+		default:
+			printWarning(w, "no longer declared: %s (%s)", c.Reference, c.Ecosystem)
+		}
+	}
+	outf(w, "\n  %s\n\n", dim("Review the change, then record it deliberately with 'scg update'."))
 }
