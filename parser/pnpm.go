@@ -44,10 +44,21 @@ func (p *PNPMLockParser) Parse(path string, content []byte) (*WorkflowFile, erro
 	var tools []ToolRef
 	for key, pkg := range lf.Packages {
 		if pkg.Resolution.Integrity == "" {
-			continue // non-registry dep (directory/link/git) — can't verify
+			// A directory, link or git dependency has no registry artifact
+			// to compare. Reporting it keeps "not covered" from reading as
+			// "covered and clean".
+			wf.Unsupported = append(wf.Unsupported, UnsupportedRef{
+				Ecosystem: "npm", Raw: key,
+				Reason: "not a registry dependency (directory, link or git): no integrity hash to compare",
+			})
+			continue
 		}
 		name, version, ok := splitPNPMKey(key)
 		if !ok {
+			wf.Unsupported = append(wf.Unsupported, UnsupportedRef{
+				Ecosystem: "npm", Raw: key,
+				Reason: "unsupported pnpm key format",
+			})
 			continue
 		}
 		ref := name + "@" + version

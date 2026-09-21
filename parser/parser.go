@@ -47,6 +47,21 @@ type StepDef struct {
 	Order int
 }
 
+// UnsupportedRef is a declaration the parser recognized but cannot reduce
+// to one immutable reference: a version range, a dependency without a
+// version, a source the resolver does not cover. It is reported rather than
+// dropped, because a silently skipped dependency reads as a covered one.
+type UnsupportedRef struct {
+	// Ecosystem the declaration belongs to, when it is known.
+	Ecosystem string
+
+	// Raw is the declaration as written, for the reader to find it again.
+	Raw string
+
+	// Reason says why it is not in the baseline, in the reader's terms.
+	Reason string
+}
+
 // WorkflowFile represents a parsed CI/CD workflow file.
 type WorkflowFile struct {
 	// Path is the file path relative to the repository root.
@@ -63,6 +78,10 @@ type WorkflowFile struct {
 
 	// Steps are all step definitions across all jobs.
 	Steps []StepDef
+
+	// Unsupported are declarations this parser recognized but did not
+	// record. Callers report them; they are not findings and not coverage.
+	Unsupported []UnsupportedRef
 }
 
 // Parser extracts tool and secret references from CI/CD configuration files.

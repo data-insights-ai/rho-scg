@@ -102,6 +102,7 @@ func makeLogger(verbose bool) *slog.Logger {
 func runInit(ctx context.Context, args []string) error {
 	fs := flag.NewFlagSet("init", flag.ExitOnError)
 	workflowDir := fs.String("workflows", ".github/workflows", "workflow directory to scan")
+	rootFlag := fs.String("root", "", "project root to scan (default: the repository root of -workflows, else the working directory)")
 	lockfile := fs.String("lockfile", "scg.lock", "output lockfile path")
 	jsonOut := fs.Bool("json", false, "output results as JSON")
 	timeout := fs.String("timeout", "", "overall time limit, e.g. 90s or 5m (0 disables)")
@@ -123,7 +124,7 @@ func runInit(ctx context.Context, args []string) error {
 	resolvers := buildResolvers()
 
 	run := func() {
-		err = classifyDeadline(ctx, doInit(ctx, logger, *workflowDir, *lockfile, resolvers, newPlatformSigner()), limit)
+		err = classifyDeadline(ctx, doInit(ctx, logger, *rootFlag, *workflowDir, *lockfile, resolvers, newPlatformSigner()), limit)
 		if err == nil && *watch {
 			err = watchAfterWrite(ctx, *lockfile, *repoFlag)
 		}
@@ -209,6 +210,7 @@ func runCheck(ctx context.Context, args []string) error {
 func runUpdate(ctx context.Context, args []string) error {
 	fs := flag.NewFlagSet("update", flag.ExitOnError)
 	workflowDir := fs.String("workflows", ".github/workflows", "workflow directory to scan")
+	rootFlag := fs.String("root", "", "project root to scan (default: the repository root of -workflows, else the working directory)")
 	lockfile := fs.String("lockfile", "scg.lock", "lockfile path")
 	timeout := fs.String("timeout", "", "overall time limit, e.g. 90s or 5m (0 disables)")
 	verbose := fs.Bool("verbose", false, "show detailed resolution progress")
@@ -226,7 +228,7 @@ func runUpdate(ctx context.Context, args []string) error {
 	defer cancel()
 
 	logger := makeLogger(*verbose)
-	if err := classifyDeadline(ctx, doUpdate(ctx, logger, *workflowDir, *lockfile), limit); err != nil {
+	if err := classifyDeadline(ctx, doUpdate(ctx, logger, *rootFlag, *workflowDir, *lockfile), limit); err != nil {
 		return err
 	}
 	if *watch {

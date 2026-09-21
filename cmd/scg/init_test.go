@@ -144,10 +144,28 @@ func TestDiscoverWorkflows(t *testing.T) {
 	}
 }
 
-func TestDiscoverWorkflows_MissingDir(t *testing.T) {
-	_, err := discoverWorkflows("/nonexistent/path")
-	if err == nil {
-		t.Fatal("expected error for missing directory")
+// A project without CI configuration has no workflow directory. That is
+// "no workflows", not a failure: the local npm, Python or container project
+// is exactly the case SCG has to serve first.
+func TestDiscoverWorkflows_MissingDirIsNoWorkflows(t *testing.T) {
+	paths, err := discoverWorkflows(filepath.Join(t.TempDir(), "nowhere"))
+	if err != nil || len(paths) != 0 {
+		t.Fatalf("missing directory = %v, %v; want no workflows and no error", paths, err)
+	}
+
+	empty := t.TempDir()
+	paths, err = discoverWorkflows(empty)
+	if err != nil || len(paths) != 0 {
+		t.Fatalf("empty directory = %v, %v; want no workflows and no error", paths, err)
+	}
+
+	// A path that exists but is not a directory is still a misconfiguration.
+	file := filepath.Join(t.TempDir(), "workflows")
+	if err := os.WriteFile(file, []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := discoverWorkflows(file); err == nil {
+		t.Fatal("a file named as the workflow directory should be reported")
 	}
 }
 
@@ -280,7 +298,7 @@ func TestDoInit_EndToEnd(t *testing.T) {
 	ctx := context.Background()
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
-	err := doInit(ctx, logger, testdataDir(), lockfilePath, resolvers, testSigner(t))
+	err := doInit(ctx, logger, "", testdataDir(), lockfilePath, resolvers, testSigner(t))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -422,7 +440,7 @@ func TestDoInit_WithLockfiles(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
 	workflowDir := filepath.Join(testdataMultiDir(), ".github", "workflows")
-	err := doInit(ctx, logger, workflowDir, lockfilePath, resolvers, testSigner(t))
+	err := doInit(ctx, logger, "", workflowDir, lockfilePath, resolvers, testSigner(t))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -484,6 +502,79 @@ func TestExtractBaseRef(t *testing.T) {
 		got := extractBaseRef(tt.input)
 		if got != tt.want {
 			t.Errorf("extractBaseRef(%q) = %q, want %q", tt.input, got, tt.want)
+		}
+	}
+}
+
+// A local project is a project, with or without CI configuration. Each of
+// the supported project files alone must produce a baseline, because the
+// first thing a new user has is a checkout, not a workflow.
+func TestDoInit_LocalProjectWithoutWorkflows(t *testing.T) {
+	files := map[string]struct{ name, content string }{
+		"npm":    {"package-lock.json", `{"lockfileVersion":3,"packages":{"node_modules/ms":{"version":"2.1.3"}}}`},
+		"pypi":   {"requirements.txt", "httpx==0.28.1\n"},
+		"docker": {"Dockerfile", "FROM alpine:3.19\n"},
+	}
+	for name, file := range files {
+		t.Run(name, func(t *testing.T) {
+			root := t.TempDir()
+			if err := os.WriteFile(filepath.Join(root, file.name), []byte(file.content), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			lockfilePath := filepath.Join(root, "scg.lock")
+			resolvers := newMultiMockResolvers()
+			resolvers[resolver.EcoDocker] = &mockResolver{resolutions: map[string]*resolver.Resolution{
+				"alpine:3.19": {
+					Original: "alpine:3.19", Hash: "sha256:0a1b2c3d4e5f0a1b2c3d4e5f0a1b2c3d",
+					Algorithm: "sha256", Source: "mock", ResolvedAt: time.Date(2026, 3, 28, 10, 0, 0, 0, time.UTC),
+				},
+			}}
+			err := doInit(context.Background(), quietLogger(), root, filepath.Join(root, ".github", "workflows"),
+				lockfilePath, resolvers, testSigner(t))
+			if err != nil {
+				t.Fatalf("a project with only %s must initialize: %v", file.name, err)
+			}
+			lf, err := manifest.ReadLockfile(lockfilePath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if countLockedTools(lf) == 0 {
+				t.Fatalf("no entries recorded for %s", file.name)
+			}
+		})
+	}
+}
+
+// An empty project must be told so. An empty lockfile would pass every
+// later check while covering nothing.
+func TestDoInit_EmptyProjectWritesNoLockfile(t *testing.T) {
+	root := t.TempDir()
+	lockfilePath := filepath.Join(root, "scg.lock")
+	err := doInit(context.Background(), quietLogger(), root, filepath.Join(root, ".github", "workflows"),
+		lockfilePath, newMultiMockResolvers(), testSigner(t))
+	if err == nil {
+		t.Fatal("an empty project must not produce a lockfile")
+	}
+	if exitCodeFor(err) != 1 {
+		t.Fatalf("no supported input is a finding (exit 1), got %d", exitCodeFor(err))
+	}
+	if _, statErr := os.Stat(lockfilePath); statErr == nil {
+		t.Fatal("a lockfile was written for a project with nothing in it")
+	}
+}
+
+// The project root is the working directory unless the conventional
+// .github/workflows layout names a repository root, or -root says otherwise.
+func TestResolveProjectRoot(t *testing.T) {
+	cases := []struct{ root, workflows, want string }{
+		{"", ".github/workflows", "."},
+		{"", "/srv/app/.github/workflows", "/srv/app"},
+		{"", "ci/pipelines", "."},
+		{"/explicit", "/srv/app/.github/workflows", "/explicit"},
+	}
+	for _, c := range cases {
+		if got := resolveProjectRoot(c.root, c.workflows); got != c.want {
+			t.Errorf("resolveProjectRoot(%q, %q) = %q, want %q", c.root, c.workflows, got, c.want)
 		}
 	}
 }

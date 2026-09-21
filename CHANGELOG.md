@@ -7,6 +7,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- `scg init` no longer requires CI configuration. A missing or empty
+  `.github/workflows` is "no workflows", not an error, and the supported
+  project files (`package-lock.json`, `pnpm-lock.yaml`,
+  `requirements*.txt`, `Dockerfile`) are read from the project root. The
+  new `-root` flag names that root; without it, the conventional
+  `.github/workflows` layout still names its own repository root and
+  everything else uses the working directory. A project with no supported
+  dependency is told so and gets no lockfile: an empty baseline passes
+  every later check while covering nothing.
+- `scg audit` verifies the baseline signature against the pinned platform
+  key, exactly as `scg check` does, and reports completeness apart from
+  findings. An audit with no baseline, with references it could not
+  resolve, or with tools that have no profile now ends in `INCOMPLETE`
+  and exit code 2 instead of `PASS`. The report names each item it could
+  not check, and a clean result says how many baseline entries were
+  compared.
+- `scg scope --sanitize` says what it does. It clears the variables inside
+  the `scg` process; the next command is a separate process that still
+  inherits them, so the output no longer reports them as "REMOVED" and
+  points at the exit code as the thing that gates the step. The action
+  input, README, skill and architecture notes say the same.
+
+### Fixed
+
+- A Python requirement with a version range (`>=`, `~=`, `>`, a
+  wildcard) was recorded as if it were pinned to the bound written in the
+  file, so the baseline held a version the installer may never select and
+  drift was compared against it. Only `==` and `===` produce a baseline
+  entry now. Ranges, bare names and pnpm entries without a registry
+  artifact are reported as not recorded, with the reason, and `scg init`
+  prints them under "Not recorded" so uncovered dependencies do not read
+  as covered ones.
+
 ## [0.3.1] - 2026-09-20
 
 ### Added

@@ -23,7 +23,7 @@ inputs:
     required: false
     default: '.github/workflows'
   sanitize:
-    description: 'In scope mode, actually remove forbidden secrets from environment'
+    description: 'In scope mode, also clear the forbidden variables inside the scg process. This does not affect later steps, which are separate processes; gate on the exit code instead.'
     required: false
     default: 'false'
   json:

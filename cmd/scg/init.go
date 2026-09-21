@@ -2,8 +2,10 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -42,25 +44,30 @@ func newPlatformSigner() *platformSigner {
 	return &platformSigner{client: platform.NewClient(cfg.PlatformBaseURL, cfg.PlatformAPIKey)}
 }
 
-func doInit(ctx context.Context, logger *slog.Logger, workflowDir, lockfilePath string, resolvers map[resolver.Ecosystem]resolver.Resolver, signer LockfileSigner) error {
+func doInit(ctx context.Context, logger *slog.Logger, projectRoot, workflowDir, lockfilePath string, resolvers map[resolver.Ecosystem]resolver.Resolver, signer LockfileSigner) error {
+	root := resolveProjectRoot(projectRoot, workflowDir)
+
+	// Workflows are one supported input, not a precondition. A local npm,
+	// Python or container project has no .github directory and must still
+	// produce a baseline.
 	paths, err := discoverWorkflows(workflowDir)
 	if err != nil {
 		return err
 	}
-	logger.Info("discovered workflows", "count", len(paths))
-
-	p := parser.NewWorkflowParser()
-	workflows, err := parseWorkflows(p, paths)
-	if err != nil {
-		return err
+	var workflows []*parser.WorkflowFile
+	if len(paths) > 0 {
+		logger.Info("discovered workflows", "count", len(paths))
+		workflows, err = parseWorkflows(parser.NewWorkflowParser(), paths)
+		if err != nil {
+			return err
+		}
 	}
 
-	// Discover and parse lockfiles (package-lock.json, requirements.txt, Dockerfile)
-	// in the repo root derived from the workflow directory.
-	repoRoot := filepath.Dir(filepath.Dir(workflowDir))
-	lockfilePaths := discoverLockfiles(repoRoot)
+	// Supported project files in the project root: package-lock.json,
+	// pnpm-lock.yaml, requirements*.txt, Dockerfile.
+	lockfilePaths := discoverLockfiles(root)
 	if len(lockfilePaths) > 0 {
-		logger.Info("discovered lockfiles", "count", len(lockfilePaths))
+		logger.Info("discovered project files", "count", len(lockfilePaths))
 		parsers := []parser.Parser{
 			parser.NewNPMPackageParser(),
 			parser.NewPNPMLockParser(),
@@ -77,6 +84,15 @@ func doInit(ctx context.Context, logger *slog.Logger, workflowDir, lockfilePath 
 	uniqueTools := collectUniqueTools(workflows)
 	logger.Info("found dependencies", "tools", len(uniqueTools))
 
+	// An empty lockfile looks protective and protects nothing, so a project
+	// with no supported input is told so instead of being handed one.
+	if len(uniqueTools) == 0 {
+		return fmt.Errorf("no supported dependencies found in %q\n"+
+			"scg reads .github/workflows/*.yml, package-lock.json, pnpm-lock.yaml, "+
+			"requirements*.txt and Dockerfile. Run from your project root, or pass "+
+			"-root; an empty lockfile would claim a protection it does not give", root)
+	}
+
 	resolved, err := resolveTools(ctx, logger, uniqueTools, resolvers)
 	if err != nil {
 		return err
@@ -87,7 +103,7 @@ func doInit(ctx context.Context, logger *slog.Logger, workflowDir, lockfilePath 
 	// The repository the lockfile belongs to, when it can be told: the
 	// platform keys watches by it. Best effort; PipelineEntry.Repo is an
 	// existing optional field, so older readers are unaffected.
-	if name, err := repo.Detect(repoRoot, ""); err == nil {
+	if name, err := repo.Detect(root, ""); err == nil {
 		for i := range lf.Pipelines {
 			lf.Pipelines[i].Repo = name
 		}
@@ -147,8 +163,31 @@ func signViaPlat(ctx context.Context, client *platform.Client, lf *manifest.Lock
 }
 
 // discoverWorkflows finds all .yml/.yaml files in the given directory.
+// resolveProjectRoot decides which directory holds the project. An explicit
+// root wins. Otherwise the conventional .github/workflows layout names its
+// own repository root, and anything else falls back to the working
+// directory, which is where a local run starts.
+func resolveProjectRoot(projectRoot, workflowDir string) string {
+	if projectRoot != "" {
+		return projectRoot
+	}
+	clean := filepath.Clean(workflowDir)
+	if filepath.Base(clean) == "workflows" && filepath.Base(filepath.Dir(clean)) == ".github" {
+		return filepath.Dir(filepath.Dir(clean))
+	}
+	return "."
+}
+
+// discoverWorkflows lists the workflow files under dir. A directory that is
+// not there, and a directory without workflow files, are both "no
+// workflows": CI configuration is optional input. A path that exists but is
+// not a directory is a misconfiguration and is still reported, as are
+// permission and I/O errors.
 func discoverWorkflows(dir string) ([]string, error) {
 	info, err := os.Stat(dir)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil, nil
+	}
 	if err != nil {
 		return nil, fmt.Errorf("workflow directory %q: %w", dir, err)
 	}
@@ -179,7 +218,7 @@ func discoverWorkflows(dir string) ([]string, error) {
 	}
 
 	if len(paths) == 0 {
-		return nil, fmt.Errorf("no workflow files found in %q", dir)
+		return nil, nil
 	}
 
 	sort.Strings(paths)
@@ -394,7 +433,21 @@ func printInitSummary(w io.Writer, workflows []*parser.WorkflowFile, resolved ma
 		printSuccess(w, "%-40s %s", ref, dim(res.Algorithm+":"+res.Hash[:minHashLen(len(res.Hash))]))
 	}
 
-	outf(w, "\n  Written: %s (%d entries, signed)\n\n", bold(lockfilePath), len(resolved))
+	outf(w, "\n  Written: %s (%d entries, signed)\n", bold(lockfilePath), len(resolved))
+
+	// What the baseline does not cover is part of the baseline's meaning.
+	var unsupported []parser.UnsupportedRef
+	for _, wf := range workflows {
+		unsupported = append(unsupported, wf.Unsupported...)
+	}
+	if len(unsupported) > 0 {
+		outf(w, "\n  Not recorded (%d):\n", len(unsupported))
+		for _, u := range unsupported {
+			printWarning(w, "%-40s %s", u.Raw, dim(u.Reason))
+		}
+		outf(w, "\n  These dependencies are not in the baseline and are not checked.\n")
+	}
+	outln(w)
 }
 
 func minHashLen(l int) int {

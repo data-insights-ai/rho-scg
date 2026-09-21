@@ -290,11 +290,28 @@ func TestDoAudit_WithoutLockfile(t *testing.T) {
 	t.Setenv("SCG_PLATFORM_URL", srv.URL)
 
 	mock := newMockResolver()
-	err := doAudit(context.Background(), quietLogger(), testdataDir(),
+	out, err := doAuditDetailed(context.Background(), quietLogger(), testdataDir(),
 		filepath.Join(t.TempDir(), "absent.lock"),
 		map[resolver.Ecosystem]resolver.Resolver{resolver.EcoGitHubAction: mock})
-	if err != nil {
-		t.Fatalf("audit with no lockfile must still run: %v", err)
+	// Without a baseline nothing was compared. The audit still runs its
+	// secret layer, but it must not report that as a clean result.
+	if err == nil {
+		t.Fatal("an audit without a baseline is incomplete, not clean")
+	}
+	if exitCodeFor(err) != 2 {
+		t.Fatalf("incompleteness is operational (exit 2), got %d for %v", exitCodeFor(err), err)
+	}
+	if len(out.Skipped) == 0 {
+		t.Fatal("the audit should name what it could not check")
+	}
+	found := false
+	for _, s := range out.Skipped {
+		if strings.Contains(s, "no baseline") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("skipped = %v, want the missing baseline named", out.Skipped)
 	}
 }
 

@@ -33,6 +33,10 @@ type auditOutcome struct {
 	Drift      []manifest.DriftResult
 	Unverified []string
 	Violations []auditViolation
+	// Skipped names what the audit could not check and why. Completeness is
+	// tracked apart from findings: "nothing found" and "nothing checked"
+	// are different answers and must never print the same.
+	Skipped []string
 }
 
 func doAuditDetailed(ctx context.Context, logger *slog.Logger, workflowDir, lockfilePath string, resolvers map[resolver.Ecosystem]resolver.Resolver) (auditOutcome, error) {
@@ -42,10 +46,14 @@ func doAuditDetailed(ctx context.Context, logger *slog.Logger, workflowDir, lock
 		return out, err
 	}
 
-	p := parser.NewWorkflowParser()
-	workflows, err := parseWorkflows(p, paths)
-	if err != nil {
-		return out, err
+	var workflows []*parser.WorkflowFile
+	if len(paths) > 0 {
+		workflows, err = parseWorkflows(parser.NewWorkflowParser(), paths)
+		if err != nil {
+			return out, err
+		}
+	} else {
+		out.Skipped = append(out.Skipped, "secret scoping: no workflow files under "+workflowDir)
 	}
 
 	uniqueTools := collectUniqueTools(workflows)
@@ -54,13 +62,27 @@ func doAuditDetailed(ctx context.Context, logger *slog.Logger, workflowDir, lock
 		return out, err
 	}
 
-	// Layer 1: Drift check against existing lockfile.
+	// Layer 1: drift against the recorded baseline. The signature is checked
+	// against the pinned platform key exactly as scg check does; an audit
+	// that trusted an unverified record would report on a file an attacker
+	// could have written.
 	var driftResults []manifest.DriftResult
+	var lockedEntries int
 	if _, statErr := os.Stat(lockfilePath); statErr == nil {
 		lf, err := manifest.ReadLockfile(lockfilePath)
 		if err != nil {
 			return out, fmt.Errorf("read lockfile: %w", err)
 		}
+		if lf.Signature == nil {
+			return out, fmt.Errorf("lockfile %s is not signed \u2014 run 'scg init' to create a signed baseline", lockfilePath)
+		}
+		if err := manifest.VerifyLockfile(lf, manifest.NewPlatformVerifier()); err != nil {
+			return out, fmt.Errorf("signature verification failed: %w", err)
+		}
+		printSuccess(os.Stdout, "Signature verified (SCG platform key %s)",
+			manifest.PlatformKeyFingerprint())
+		lockedEntries = countLockedTools(lf)
+
 		allResolvers := buildResolvers()
 		var driftWarnings []string
 		driftResults, driftWarnings, err = detectDriftWithPartialFailure(ctx, lf, allResolvers)
@@ -71,6 +93,11 @@ func doAuditDetailed(ctx context.Context, logger *slog.Logger, workflowDir, lock
 			printWarning(os.Stdout, "%s", w)
 		}
 		out.Unverified = driftWarnings
+		for _, w := range driftWarnings {
+			out.Skipped = append(out.Skipped, "dependency integrity: "+w)
+		}
+	} else {
+		out.Skipped = append(out.Skipped, "dependency integrity: no baseline at "+lockfilePath)
 	}
 
 	// Layer 2: Secret scoping via platform profiles.
@@ -91,7 +118,11 @@ func doAuditDetailed(ctx context.Context, logger *slog.Logger, workflowDir, lock
 			baseRef := extractBaseRef(tool.Reference)
 			profile, err := client.FetchProfile(ctx, tool.Ecosystem, baseRef)
 			if err != nil {
+				// A tool without a profile is a tool whose secrets nobody
+				// compared. Saying so is the difference between "clean" and
+				// "not looked at".
 				logger.Info("no profile for tool", "ref", baseRef, "err", err)
+				out.Skipped = append(out.Skipped, "secret scoping: no profile for "+baseRef)
 				continue
 			}
 
@@ -116,17 +147,34 @@ func doAuditDetailed(ctx context.Context, logger *slog.Logger, workflowDir, lock
 		}
 	}
 
-	// Print report.
-	printAuditReport(os.Stdout, workflows, resolved, driftResults, violations)
-
 	out.Drift = driftResults
 	out.Violations = violations
+
+	// Print report.
+	printAuditReport(os.Stdout, workflows, resolved, driftResults, violations, out.Skipped, lockedEntries)
+
+	// A finding is reported before incompleteness: a confirmed drift or a
+	// secret violation stays a finding even when other items were skipped.
 	issues := len(driftResults) + len(violations)
 	if issues > 0 {
 		return out, fmt.Errorf("audit found %d issue(s)", issues)
 	}
-
+	if len(out.Skipped) > 0 {
+		return out, operational("incomplete audit: %d check(s) could not be completed \u2014 this is not a clean result", len(out.Skipped))
+	}
 	return out, nil
+}
+
+// countLockedTools counts the entries a baseline actually carries, so the
+// report can say how much was compared rather than implying everything was.
+func countLockedTools(lf *manifest.Lockfile) int {
+	n := 0
+	for _, p := range lf.Pipelines {
+		for _, s := range p.Steps {
+			n += len(s.Tools)
+		}
+	}
+	return n
 }
 
 func printAuditReport(
@@ -135,6 +183,8 @@ func printAuditReport(
 	resolved map[string]*resolver.Resolution,
 	driftResults []manifest.DriftResult,
 	violations []auditViolation,
+	skipped []string,
+	lockedEntries int,
 ) {
 	outf(w, "\n  %s\n\n", bold("SCG Audit Report"))
 
@@ -147,9 +197,12 @@ func printAuditReport(
 	outf(w, "  Tools:     %d\n\n", len(resolved))
 
 	outf(w, "  %s\n", bold("Dependency Integrity"))
-	if len(driftResults) == 0 {
-		printSuccess(w, "No drift detected.")
-	} else {
+	switch {
+	case lockedEntries == 0:
+		printWarning(w, "No signed baseline was compared.")
+	case len(driftResults) == 0:
+		printSuccess(w, "No drift detected in %d baseline entries.", lockedEntries)
+	default:
 		for _, d := range driftResults {
 			printFailure(w, "CRITICAL: %s", d.Reference)
 			outf(w, "      Locked: %s\n", dim(d.LockedHash))
@@ -168,10 +221,24 @@ func printAuditReport(
 	}
 	outln(w)
 
+	if len(skipped) > 0 {
+		outf(w, "  %s\n", bold("Not checked"))
+		for _, s := range skipped {
+			printWarning(w, "%s", s)
+		}
+		outln(w)
+	}
+
 	issues := len(driftResults) + len(violations)
-	if issues == 0 {
-		outf(w, "  Result: %s\n\n", green(bold("PASS")))
-	} else {
+	switch {
+	case issues > 0:
 		outf(w, "  Result: %s (%d issue(s))\n\n", red(bold("FAIL")), issues)
+	case len(skipped) > 0:
+		// Never PASS on an audit that did not complete: a clean report the
+		// reader cannot distinguish from an unchecked one is the failure
+		// mode this command exists to avoid.
+		outf(w, "  Result: %s (%d check(s) not completed)\n\n", bold("INCOMPLETE"), len(skipped))
+	default:
+		outf(w, "  Result: %s (%d baseline entries compared)\n\n", green(bold("PASS")), lockedEntries)
 	}
 }

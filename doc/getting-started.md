@@ -27,7 +27,10 @@ Requirements: Go 1.26+
 
 ### 1. Initialize your lockfile
 
-Navigate to your repository root (where `.github/workflows/` lives):
+Navigate to your project root. Workflows are optional: `scg init` also
+reads `package-lock.json`, `pnpm-lock.yaml`, `requirements*.txt` and
+`Dockerfile`, so a local project with no `.github` directory works. Pass
+`-root` to scan somewhere other than the working directory.
 
 ```bash
 cd your-project

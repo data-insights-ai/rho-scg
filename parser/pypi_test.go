@@ -133,24 +133,35 @@ scipy>1.11
 		t.Fatal(err)
 	}
 
-	// requests (==), boto3 (>=), numpy (~=) are included.
-	// pandas (no version) and scipy (> only) are skipped.
-	if len(wf.Tools) != 3 {
-		t.Fatalf("tools = %d, want 3", len(wf.Tools))
+	// Only an exact pin names the artifact pip will install. A range
+	// recorded as its lower bound would compare a version nobody selected,
+	// so ">=", "~=" and ">" are reported as unsupported instead.
+	if len(wf.Tools) != 1 || wf.Tools[0].Reference != "requests@2.31.0" {
+		t.Fatalf("tools = %+v, want only requests@2.31.0", wf.Tools)
 	}
 
-	refs := make(map[string]bool)
-	for _, tool := range wf.Tools {
-		refs[tool.Reference] = true
+	unsupported := make(map[string]string)
+	for _, u := range wf.Unsupported {
+		unsupported[u.Raw] = u.Reason
 	}
-	if !refs["requests@2.31.0"] {
-		t.Error("missing requests@2.31.0")
+	for _, raw := range []string{"boto3>=1.34.0", "numpy~=1.26.0", "pandas", "scipy>1.11"} {
+		if unsupported[raw] == "" {
+			t.Errorf("%q was dropped silently; it must be reported as unsupported", raw)
+		}
 	}
-	if !refs["boto3@1.34.0"] {
-		t.Error("missing boto3@1.34.0")
+	if len(wf.Unsupported) != 4 {
+		t.Fatalf("unsupported = %+v, want four entries", wf.Unsupported)
 	}
-	if !refs["numpy@1.26.0"] {
-		t.Error("missing numpy@1.26.0")
+}
+
+// A wildcard is a range written like a pin.
+func TestPyPIRequirementsParser_WildcardIsNotAPin(t *testing.T) {
+	wf, err := NewPyPIRequirementsParser().Parse("requirements.txt", []byte("django==4.2.*\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(wf.Tools) != 0 || len(wf.Unsupported) != 1 {
+		t.Fatalf("tools = %+v, unsupported = %+v", wf.Tools, wf.Unsupported)
 	}
 }
 

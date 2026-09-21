@@ -110,7 +110,8 @@ internal/config/   Configuration from environment
 3. Scan local environment for secret-like variables
 4. Match secrets against profile's forbidden regex patterns
 5. Report violations
-6. Optionally: unset forbidden env vars (--sanitize)
+6. Optionally: clear forbidden env vars inside the scg process (--sanitize;
+   later commands are separate processes and are unaffected)
 ```
 
 ## Signing Model

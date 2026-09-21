@@ -43,8 +43,9 @@ scg update [--lockfile PATH]
 
 scg scope --step NAME
   Audit the current environment against the security profile for the
-  named step's tool. Reports forbidden secrets and optionally sanitizes
-  the environment.
+  named step's tool. Reports which forbidden secrets the step can see.
+  --sanitize clears them inside the scg process only; the next command is
+  a separate process and still sees them, so gate on the exit code.
   Exit: 0 = clean, 1 = violations found
 
 scg audit [--workflows DIR]

@@ -281,7 +281,7 @@ trivy-action@v1      -->  sha256:57a97c7e...  (immutable)
 
 ### Layer 2: Secret Scoping
 
-Each CI tool has a **security profile** defining what secrets it legitimately needs. `scg scope` identifies forbidden secrets, and with `--sanitize` actually removes them from the environment before the next step runs.
+Each CI tool has a **security profile** defining what secrets it legitimately needs. `scg scope` reports which forbidden secrets the step can see. `--sanitize` clears those variables inside the `scg` process; the command that runs next is a separate process and still inherits them from the shell or the runner, so stop the job on the exit code rather than relying on removal. Restricting the credential in the step that runs the tool is what actually isolates it.
 
 ```
 trivy-action profile:
@@ -302,7 +302,7 @@ The SCG Platform at `api.scg.data-insights.ai` continuously crawls and pre-compu
 | `scg init` | Scan workflows, resolve all dependencies, write `scg.lock` | 0 = success, 2 = operational |
 | `scg check` | Validate `scg.lock` against live state | 0 = clean, 1 = drift, 2 = operational |
 | `scg update` | Re-resolve all dependencies, update `scg.lock` | 0 = success, 2 = operational |
-| `scg scope --step NAME` | Audit secrets for a step (add `--sanitize` to remove them) | 0 = clean, 1 = violations, 2 = operational |
+| `scg scope --step NAME` | Report which forbidden secrets a step can see (`--sanitize` clears them inside scg only) | 0 = clean, 1 = violations, 2 = operational |
 | `scg audit` | Full security report (drift + secret exposure) | 0 = clean, 1 = issues, 2 = operational |
 | `scg watch [--repo NAME]` | Upload the signed `scg.lock` so the platform watches its tools for this repository (needs a key) | 0 = watching, 2 = operational |
 | `scg unwatch [--repo NAME \| --all]` | Stop watching a repository, or every repository | 0 |

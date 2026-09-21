@@ -72,8 +72,22 @@ func (p *PyPIRequirementsParser) Parse(path string, content []byte) (*WorkflowFi
 			}
 		}
 
-		name, version, ok := parseVersionSpec(line)
-		if !ok {
+		name, version, exact := parseVersionSpec(line)
+		switch {
+		case name == "":
+			wf.Unsupported = append(wf.Unsupported, UnsupportedRef{
+				Ecosystem: "pypi", Raw: line,
+				Reason: "no package and version could be read from this requirement",
+			})
+			continue
+		case !exact:
+			// ">=1.0" and "~=1.0" do not name the artifact pip will
+			// install; recording 1.0 as the baseline would compare a
+			// version nobody asked for. Say so instead.
+			wf.Unsupported = append(wf.Unsupported, UnsupportedRef{
+				Ecosystem: "pypi", Raw: line,
+				Reason: "version range: pin with == for a baseline entry, or record a resolved requirements file",
+			})
 			continue
 		}
 
@@ -125,20 +139,32 @@ func isPipOption(line string) bool {
 // parseVersionSpec extracts the package name and version from a version specifier line.
 // Returns (name, version, true) for pinnable specs (==, >=, ~=).
 // Returns ("", "", false) for bare names or unsupported operators.
-func parseVersionSpec(line string) (string, string, bool) {
-	// Try operators in order of specificity.
-	for _, op := range []string{"==", "~=", ">="} {
-		if idx := strings.Index(line, op); idx >= 0 {
-			name := strings.TrimSpace(line[:idx])
-			version := strings.TrimSpace(line[idx+len(op):])
-			// Strip any trailing version constraints (e.g., ">=1.0,<2.0" -> "1.0").
-			if commaIdx := strings.Index(version, ","); commaIdx >= 0 {
-				version = strings.TrimSpace(version[:commaIdx])
-			}
-			if name != "" && version != "" {
-				return name, version, true
-			}
+// parseVersionSpec splits a requirement into its package and version and
+// reports whether the version is an exact pin. Only "==" pins an artifact:
+// every other operator leaves the installer a choice, and a baseline built
+// from a choice compares nothing in particular.
+func parseVersionSpec(line string) (name, version string, exact bool) {
+	for _, op := range []string{"===", "==", "~=", ">=", "<=", "!=", ">", "<"} {
+		idx := strings.Index(line, op)
+		if idx < 0 {
+			continue
 		}
+		name = strings.TrimSpace(line[:idx])
+		version = strings.TrimSpace(line[idx+len(op):])
+		if commaIdx := strings.Index(version, ","); commaIdx >= 0 {
+			version = strings.TrimSpace(version[:commaIdx])
+		}
+		if name == "" || version == "" {
+			return "", "", false
+		}
+		if strings.ContainsAny(version, "*") {
+			return name, version, false // "==1.4.*" is a range in pin's clothing
+		}
+		return name, version, op == "==" || op == "==="
+	}
+	// A bare name with no version at all.
+	if trimmed := strings.TrimSpace(line); trimmed != "" && !strings.ContainsAny(trimmed, "=<>!~ ") {
+		return trimmed, "", false
 	}
 	return "", "", false
 }
