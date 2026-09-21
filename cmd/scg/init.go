@@ -93,6 +93,16 @@ func doInit(ctx context.Context, logger *slog.Logger, projectRoot, workflowDir, 
 			"-root; an empty lockfile would claim a protection it does not give", root)
 	}
 
+	// Ask for the whole set in one request per ecosystem before resolving.
+	// Each answer is cached, so the per-reference pass below is served from
+	// it: a 40-dependency project cost 41 requests against an hourly
+	// allowance and now costs two.
+	refs := make([]uniqueRef, 0, len(uniqueTools))
+	for _, tool := range uniqueTools {
+		refs = append(refs, uniqueRef{Ecosystem: tool.Ecosystem, Reference: tool.Reference})
+	}
+	prefetch(ctx, refs, resolvers, logger)
+
 	resolved, err := resolveTools(ctx, logger, uniqueTools, resolvers)
 	if err != nil {
 		return err

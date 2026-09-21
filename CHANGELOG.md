@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `scg init` asks the platform for the whole dependency set in one request
+  per ecosystem instead of one request per dependency. Measured against a
+  counting stub: a 40-dependency project cost 41 requests and now costs
+  two, one batch and one signature. The plans sell API requests, so the
+  cost of a command is measured in a test rather than estimated:
+  `TestRequestCost_InitAndCheck` and `TestRequestCost_SignsOnce`.
 - `scg check` compares what the project declares now with what the
   baseline recorded, and reports a dependency the baseline never reviewed
   or one it recorded that the project has dropped. Drift iterates the
