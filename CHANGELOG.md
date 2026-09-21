@@ -21,6 +21,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   so no secret reaches the shell history or a process listing; it is not
   stored anywhere afterwards. Set the password once under Password in the
   account page.
+- `poetry.lock`, `uv.lock` and `Pipfile.lock` are read, so a Python project
+  is checked the way a Node one already was. `requirements.txt` is not a
+  lock file: it names what somebody asked for, not what pip installed.
+  One pinned line becomes a dozen packages in the environment, and every
+  one of those is a package somebody can compromise, so checking only the
+  pinned lines was checking the wrong thing. Measured with uv: FastAPI,
+  SQLAlchemy, Pydantic, httpx and uvicorn are five requirements and
+  nineteen packages; a Django, Celery, pandas, boto3, scikit-learn and
+  JupyterLab stack is ten requirements and a hundred and thirty-three
+  packages. Names are compared per PEP 503, so `Jinja2` and `jinja2`, and
+  `zope.interface` and `zope-interface`, are one dependency. Development
+  groups are included, because a compromised test dependency runs in the
+  build like any other. A project with only a `requirements.txt` is now
+  told plainly that its installed packages are not covered, and which
+  command produces a lock file.
 
 ## [0.4.0] - 2026-09-21
 

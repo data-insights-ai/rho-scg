@@ -369,10 +369,16 @@ about SCG's availability.
 |---|---|---|
 | GitHub Actions | `.github/workflows/*.yml` | Implemented |
 | Docker | `Dockerfile`, `*.dockerfile` | Implemented |
-| npm | `package-lock.json` | Implemented |
-| PyPI | `requirements.txt`, `requirements-*.txt` | Implemented |
+| npm | `package-lock.json`, `pnpm-lock.yaml` | Implemented |
+| PyPI | `poetry.lock`, `uv.lock`, `Pipfile.lock` (the resolved tree), `requirements.txt`, `requirements-*.txt` (only the pinned lines) | Implemented |
 | Go | `go.mod`, `go.sum` | Planned |
 | Helm | `Chart.yaml` | Planned |
+
+A lock file is the whole resolved tree; `requirements.txt` is not. It names
+what somebody asked for, not what pip installed, so a baseline built from it
+covers the pinned lines and not the packages underneath them. Run `uv lock`,
+`poetry lock`, `pipenv lock` or `pip-compile` and rerun `scg init`; the CLI
+says so when it finds no lock file.
 
 ## SCG Platform
 

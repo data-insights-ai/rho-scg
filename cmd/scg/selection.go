@@ -113,6 +113,7 @@ func declaredDependencies(projectRoot, workflowDir string) ([]*parser.WorkflowFi
 		extra, err := parseWithMultiParser([]parser.Parser{
 			parser.NewNPMPackageParser(),
 			parser.NewPNPMLockParser(),
+			parser.NewPythonLockParser(),
 			parser.NewPyPIRequirementsParser(),
 			parser.NewDockerfileParser(),
 		}, projectFiles)

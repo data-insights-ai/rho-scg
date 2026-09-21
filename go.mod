@@ -3,6 +3,7 @@ module github.com/data-insights-ai/rho-scg
 go 1.26.1
 
 require (
+	github.com/BurntSushi/toml v1.4.0
 	golang.org/x/term v0.41.0
 	gopkg.in/yaml.v3 v3.0.1
 )
