@@ -318,7 +318,7 @@ The SCG Platform at `api.scg.data-insights.ai` continuously crawls and pre-compu
 | `scg unwatch [--repo NAME \| --all]` | Stop watching a repository, or every repository | 0 |
 | `scg watches [--json]` | List watched repositories and tools | 0 |
 | `scg intel [--watched\|--private] [--stix]` | Drift and burst events: the public feed, only your watched tools, or your organization's private feed | 0 |
-| `scg login` / `scg logout` | Sign this machine in to your organization by browser (stores a key, owner-only), or forget it | 0 |
+| `scg login` / `scg logout` | Sign this machine in to your organization by browser, or with `--password --email ADDR` on a machine that has neither browser nor mail (stores a key, owner-only), or forget it | 0 |
 | `scg version` | Print version | 0 |
 
 `--json` on `init`, `check`, `scope`, `audit` and `watches` prints a structured
@@ -340,7 +340,8 @@ Zero-config by default. Optional environment variables:
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `SCG_API_KEY` | (none) | API key of your organization; without it `scg login` credentials are used, else anonymous (20 requests an hour per IP; a check is one request) |
+| `SCG_API_KEY` | (none) | API key of your organization; without it `scg login` credentials are used, else anonymous (25 dependency resolutions an hour per address) |
+| `SCG_PASSWORD` | (none) | Password for `scg login --password`, so no secret reaches the shell history or a process listing |
 | `SCG_REPO` | (detected) | Repository name for `watch`, e.g. `github.com/acme/app` |
 | `SCG_PLATFORM_URL` | `https://api.scg.data-insights.ai` | Platform API endpoint |
 | `SCG_LOCKFILE` | `scg.lock` | Lockfile path |
