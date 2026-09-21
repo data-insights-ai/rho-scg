@@ -2,7 +2,7 @@
 
 ## Overview
 
-SCG is a Go CLI that prevents supply chain attacks by enforcing dependency integrity and secret least-privilege in CI/CD pipelines. The CLI queries the SCG Platform API for all data — no registry tokens, no local resolution, no configuration needed.
+SCG is a Go CLI that records a project's dependencies as resolved fingerprints and reports when what the project uses stops matching that record, together with the credentials each step can reach. It runs locally and in pipelines. The CLI queries the SCG Platform API for all resolution and signing — no registry tokens, no local resolution, no configuration needed.
 
 ```
 User Interface        scg init | check | scope | audit

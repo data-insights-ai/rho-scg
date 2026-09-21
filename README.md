@@ -1,12 +1,15 @@
 # Supply Chain Guardian (SCG)
 
-**Prevent supply chain attacks before they reach your pipeline.**
+**Know when the software you trust changes.**
 
-SCG enforces dependency integrity and secret least-privilege across CI/CD pipelines. Single binary. Zero config. Two independent defense layers that would have stopped every major CI/CD supply chain attack of the past seven years.
+SCG records the dependencies of a project as resolved fingerprints, signed by the platform, and reports when what the project uses stops matching that record. A single binary; it runs on your own machine as readily as in a pipeline.
 
-- **Digest pinning** — locks every dependency to an immutable content hash. Tag hijacking, dependency confusion, and typosquatting are structurally impossible.
-- **Secret scoping** — enforces least-privilege per CI step. A scanner cannot read publish tokens. A linter cannot access cloud credentials.
-- **Drift detection** — catches any change between what you approved and what runs. The SCG Platform tracks dependency state continuously across all supported ecosystems.
+- **A reviewed baseline** — `scg init` resolves every supported dependency to a content hash and records it in a signed `scg.lock`. What the baseline does not cover is printed, so an uncovered dependency does not read as a covered one.
+- **Drift detection** — `scg check` re-resolves the recorded entries and reports a reference that now resolves to different content: a moved tag, a republished version.
+- **Selection checking** — the same command compares what the project declares today with what the baseline recorded, so a dependency added after the review is a finding rather than something the drift pass never looks at.
+- **Secret scoping** — each tool's profile names the credentials it needs and the ones it must not see. `scg audit` reports the ones a step can reach. It reports exposure; it does not isolate it.
+
+What this is not: SCG does not intercept installs, inspect processes, or establish that a dependency is free of malicious code. A matching fingerprint says the artifact did not change, not that it is safe, and a first baseline records whatever was there when you ran it.
 
 ## Quick Start
 
@@ -92,14 +95,18 @@ Either layer alone breaks the kill chain.
 
 ### Real-World Attacks SCG Stops
 
-Every major CI/CD supply chain attack of the past seven years. Sorted newest-first.
+Published CI/CD supply chain attacks and the mechanism each one used, newest first.
 
-| Attack | Date | What Happened | Impact | SCG Defense |
+These rows map a mechanism to the layer that addresses that mechanism. They are not
+replays: no incident below was reproduced against a released SCG build, and the
+column says which layer applies, not that the attack was tested and blocked.
+
+| Attack | Date | What Happened | Impact | Layer that addresses the mechanism |
 |---|---|---|---|---|
-| **tj-actions/changed-files** | Mar 2025 | GitHub Action tags force-pushed to malicious commits; CI secrets stolen | 23,000+ repos, CISA KEV | Digest pinning rejects rewritten tag; secret scoping strips credentials |
-| **reviewdog/action-setup** | Mar 2025 | Action tag hijacked, leaking PAT that cascaded to tj-actions | CISA KEV, multiple downstream actions | Digest pinning catches tag rewrite; secret scoping limits blast radius |
+| **tj-actions/changed-files** | Mar 2025 | GitHub Action tags force-pushed to malicious commits; CI secrets stolen | 23,000+ repos, CISA KEV | A rewritten tag resolves to different content, so the recorded entry no longer matches; the secret audit reports the credential the step did not need |
+| **reviewdog/action-setup** | Mar 2025 | Action tag hijacked, leaking PAT that cascaded to tj-actions | CISA KEV, multiple downstream actions | A rewritten tag no longer matches the recorded entry; the secret audit reports what the step could reach |
 | **PyTorch torchtriton** | Dec 2022 | Dependency confusion: public PyPI package squatted internal name; exfiltrated SSH keys | 2,700+ downloads in 5 days | Manifest pins source registry + content digest; registry switch detected |
-| **Codecov Bash Uploader** | Jan-Apr 2021 | CI script modified to exfiltrate all env vars via `$(env)` | 29,000+ customers, undetected 2 months | Digest catches script tampering; secret scoping blocks `$(env)` exfiltration |
+| **Codecov Bash Uploader** | Jan-Apr 2021 | CI script modified to exfiltrate all env vars via `$(env)` | 29,000+ customers, undetected 2 months | A modified script no longer matches the recorded entry; the secret audit reports the variables the step could read |
 | **ua-parser-js** (npm) | Oct 2021 | npm account hijacked; cryptominer + credential stealer published | 7M+ weekly downloads | Digest pinning rejects unexpected content hash |
 | **event-stream** (npm) | Nov 2018 | Maintainer socially engineered; malicious transitive dependency added | 8M malicious installs over 2.5 months | Manifest locks full dependency tree; new transitive dep rejected |
 | **PyPI typosquatting** | 2022-2025 | Sustained campaigns: 500+ fake packages in a single 2024 wave | 10,000+ malicious downloads per campaign | Manifest allowlist rejects unknown packages |
@@ -255,14 +262,17 @@ Attack Chain                          SCG Defense
 
 ### Coverage Matrix
 
-| Attack | Date | Digest Pinning | Secret Scoping | Drift Detection |
+Which layer addresses which mechanism. "Applies" means the mechanism is the kind of
+change that layer compares, not that the incident was replayed against a released build.
+
+| Attack | Date | Recorded baseline | Secret scoping | Drift detection |
 |---|---|:---:|:---:|:---:|
-| tj-actions + reviewdog | Mar 2025 | Stops it | Limits blast radius | Stops it |
-| PyTorch confusion | Dec 2022 | Stops it | Limits blast radius | Stops it |
-| Codecov | Jan-Apr 2021 | Stops it | Limits blast radius | Stops it |
-| ua-parser-js | Oct 2021 | Stops it | - | Stops it |
-| event-stream | Nov 2018 | Stops it | - | Stops it |
-| PyPI typosquatting | 2022-2025 | Stops it | - | Stops it |
+| tj-actions + reviewdog | Mar 2025 | Applies | Reports exposure | Applies |
+| PyTorch confusion | Dec 2022 | Applies | Reports exposure | Applies |
+| Codecov | Jan-Apr 2021 | Applies | Reports exposure | Applies |
+| ua-parser-js | Oct 2021 | Applies | - | Applies |
+| event-stream | Nov 2018 | Applies | - | Applies |
+| PyPI typosquatting | 2022-2025 | Applies | - | Applies |
 
 **Digest pinning alone stops all 7 attacks. Secret scoping provides defense-in-depth for the 3 that specifically target CI secrets.**
 

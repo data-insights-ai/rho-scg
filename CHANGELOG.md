@@ -21,6 +21,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The README no longer says the two layers "would have stopped every
+  major CI/CD supply chain attack of the past seven years", that tag
+  hijacking and typosquatting are "structurally impossible", or that
+  secret scoping "strips credentials". None of that is established: the
+  incident tables map a mechanism to the layer that compares that kind of
+  change, and say so. The header states what the tool does and what it
+  does not do.
 - `scg init` no longer requires CI configuration. A missing or empty
   `.github/workflows` is "no workflows", not an error, and the supported
   project files (`package-lock.json`, `pnpm-lock.yaml`,
