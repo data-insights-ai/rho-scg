@@ -85,3 +85,42 @@ func FuzzPyPIParse(f *testing.F) {
 		p.Parse("requirements.txt", data)
 	})
 }
+
+// A lock file comes from the repository being checked, so it is input a
+// stranger controls. Every other parser here is fuzzed; this one reads
+// TOML and JSON through third-party decoders, which is more surface, not
+// less.
+func FuzzPythonLockParse(f *testing.F) {
+	f.Add("poetry.lock", []byte("[[package]]\nname = \"certifi\"\nversion = \"2024.8.30\"\n"))
+	f.Add("uv.lock", []byte("version = 1\n[[package]]\nname = \"httpx\"\nversion = \"0.27.2\"\nsource = { registry = \"https://pypi.org/simple\" }\n"))
+	f.Add("uv.lock", []byte("[[package]]\nname = \"app\"\nversion = \"0.1.0\"\nsource = { editable = \".\" }\n"))
+	f.Add("Pipfile.lock", []byte(`{"default":{"requests":{"version":"==2.32.3"}},"develop":{}}`))
+	f.Add("Pipfile.lock", []byte(`{"default":{"x":{"path":"./x"}}}`))
+	f.Add("poetry.lock", []byte(""))
+	f.Add("poetry.lock", []byte("[[package]]\nname = \"\"\nversion = \"\"\n"))
+	f.Add("Pipfile.lock", []byte("{"))
+
+	p := NewPythonLockParser()
+	f.Fuzz(func(t *testing.T, name string, data []byte) {
+		// Only the three names this parser claims; anything else is not
+		// its input and Parse is documented to reject it.
+		switch name {
+		case "poetry.lock", "uv.lock", "Pipfile.lock":
+		default:
+			return
+		}
+		// Must not panic for any input, and must not return a tool
+		// without both a name and a version: an entry missing either is
+		// not something that can be resolved, and letting one through
+		// would put a meaningless reference in a baseline.
+		wf, err := p.Parse(name, data)
+		if err != nil || wf == nil {
+			return
+		}
+		for _, tool := range wf.Tools {
+			if tool.Name == "" || tool.Version == "" || tool.Reference != tool.Name+"@"+tool.Version {
+				t.Fatalf("%s produced an unusable entry: %+v", name, tool)
+			}
+		}
+	})
+}
