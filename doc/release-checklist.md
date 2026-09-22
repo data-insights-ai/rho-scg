@@ -22,7 +22,7 @@ judge staleness against — every answer looks fresh regardless of age.
    check**: a new key invalidates every lockfile ever signed.
 
    ```sh
-   curl -s https://api.scg.data-insights.ai/v1/pubkey
+   curl -s https://scg.data-insights.ai/v1/pubkey
    ```
 
    `public_key` must still be `Z+U1HXD+1LrnVdYXDR/MhuYaEApwtN5+wYkn6VeosWU=`,
@@ -33,7 +33,7 @@ judge staleness against — every answer looks fresh regardless of age.
 4. Confirm the new fields are being served:
 
    ```sh
-   curl -s 'https://api.scg.data-insights.ai/v1/resolve/github_action/actions%2Fcheckout@v4'
+   curl -s 'https://scg.data-insights.ai/v1/resolve/github_action/actions%2Fcheckout@v4'
    ```
 
    Expect `resolved_at`, `age_seconds`, `stale` and
@@ -42,7 +42,7 @@ judge staleness against — every answer looks fresh regardless of age.
 5. Watch `/v1/status` for one hour, across at least one `resolve-all` run:
 
    ```sh
-   curl -s https://api.scg.data-insights.ai/v1/status
+   curl -s https://scg.data-insights.ai/v1/status
    ```
 
    - `resolution_healthy` should become `true` after the first sweep.
@@ -59,7 +59,7 @@ judge staleness against — every answer looks fresh regardless of age.
 GitHub:
 
 ```sh
-curl -s 'https://api.scg.data-insights.ai/v1/resolve/github_action/actions%2Fcheckout@v4' | grep -o '"hash":"[^"]*"'
+curl -s 'https://scg.data-insights.ai/v1/resolve/github_action/actions%2Fcheckout@v4' | grep -o '"hash":"[^"]*"'
 curl -s https://api.github.com/repos/actions/checkout/git/ref/tags/v4 | grep -o '"sha": "[^"]*"'
 ```
 

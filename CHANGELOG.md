@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- The platform's address is now `https://scg.data-insights.ai`: the API is
+  served from the site's own origin, under `/v1`. Two origins put a CORS
+  preflight in front of every browser write, and a preflight missing a
+  method does not fail loudly — the browser never sends the request — so
+  the split cost real bugs and bought nothing.
+
+  `https://api.scg.data-insights.ai` serves the same API and always will:
+  every binary released before this one has it compiled in. Nothing needs
+  to be reinstalled, and nobody has to sign in again — a key saved by
+  `scg login` names the host it was issued by, and the two names are
+  recognised as the same platform.
+
 ## [0.5.0] - 2026-09-21
 
 ### Added

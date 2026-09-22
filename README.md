@@ -301,7 +301,7 @@ trivy-action profile:
 
 ### SCG Platform
 
-The SCG Platform at `api.scg.data-insights.ai` continuously crawls and pre-computes digests for all known CI/CD tools across all supported ecosystems. The CLI queries the platform for every resolution — no GitHub token, no Docker Hub account, no registry credentials needed. The platform also hosts curated security profiles for secret scoping.
+The SCG Platform at `scg.data-insights.ai` continuously crawls and pre-computes digests for all known CI/CD tools across all supported ecosystems. The CLI queries the platform for every resolution — no GitHub token, no Docker Hub account, no registry credentials needed. The platform also hosts curated security profiles for secret scoping.
 
 ---
 
@@ -343,7 +343,7 @@ Zero-config by default. Optional environment variables:
 | `SCG_API_KEY` | (none) | API key of your organization; without it `scg login` credentials are used, else anonymous (25 dependency resolutions an hour per address) |
 | `SCG_PASSWORD` | (none) | Password for `scg login --password`, so no secret reaches the shell history or a process listing |
 | `SCG_REPO` | (detected) | Repository name for `watch`, e.g. `github.com/acme/app` |
-| `SCG_PLATFORM_URL` | `https://api.scg.data-insights.ai` | Platform API endpoint |
+| `SCG_PLATFORM_URL` | `https://scg.data-insights.ai` | Platform API endpoint |
 | `SCG_LOCKFILE` | `scg.lock` | Lockfile path |
 | `SCG_WORKFLOW_DIR` | `.github/workflows` | Workflow directory |
 | `SCG_LOG_LEVEL` | `info` | debug, info, warn, error |
@@ -382,7 +382,7 @@ says so when it finds no lock file.
 
 ## SCG Platform
 
-The CLI queries the SCG Platform (`api.scg.data-insights.ai`) for all dependency resolution and security profile lookups. No local resolution, no registry credentials, no fallback. If the platform is unreachable, the check fails — this is by design.
+The CLI queries the SCG Platform (`scg.data-insights.ai`) for all dependency resolution and security profile lookups. No local resolution, no registry credentials, no fallback. If the platform is unreachable, the check fails — this is by design.
 
 ```bash
 # Works out of the box (20 req/hr anonymous)
