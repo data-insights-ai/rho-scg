@@ -15,7 +15,7 @@ func TestCredentialsRoundTripAndPrecedence(t *testing.T) {
 	if c, err := LoadCredentials(); err != nil || c.APIKey != "" {
 		t.Fatalf("missing file = %+v, %v", c, err)
 	}
-	path, err := SaveCredentials(Credentials{APIKey: "scg_x_y", Organization: "acme", PlatformURL: "https://api.scg.data-insights.ai", SavedAt: time.Now()})
+	path, err := SaveCredentials(Credentials{APIKey: "scg_x_y", Organization: "acme", PlatformURL: "https://scg.data-insights.ai", SavedAt: time.Now()})
 	if err != nil {
 		t.Fatal(err)
 	}

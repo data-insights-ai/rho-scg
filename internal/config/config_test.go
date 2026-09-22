@@ -14,7 +14,7 @@ func TestLoad_Defaults(t *testing.T) {
 
 	cfg := Load()
 
-	if cfg.PlatformBaseURL != "https://api.scg.data-insights.ai" {
+	if cfg.PlatformBaseURL != "https://scg.data-insights.ai" {
 		t.Errorf("PlatformBaseURL = %q, want the production endpoint", cfg.PlatformBaseURL)
 	}
 	if cfg.LockfilePath != "scg.lock" {
@@ -75,5 +75,26 @@ func TestEnvOrDefault_EmptyFallsBack(t *testing.T) {
 	t.Setenv("SCG_TEST_SET", "value")
 	if got := envOrDefault("SCG_TEST_SET", "fallback"); got != "value" {
 		t.Errorf("envOrDefault = %q, want the set value", got)
+	}
+}
+
+// Moving the default platform URL must not sign anybody out. A key saved
+// by `scg login` names the host it was issued by, and the old host is the
+// same platform under a different name — refusing it would have made the
+// move look like an expired credential to every existing user.
+func TestSavedCredentialsSurviveTheMoveToTheSiteOrigin(t *testing.T) {
+	for _, tc := range []struct {
+		a, b string
+		same bool
+	}{
+		{"https://api.scg.data-insights.ai", "https://scg.data-insights.ai", true},
+		{"https://scg.data-insights.ai", "https://scg.data-insights.ai", true},
+		{"https://api.scg.data-insights.ai/", "https://scg.data-insights.ai", true},
+		{"https://scg.data-insights.ai", "https://scg.example.invalid", false},
+		{"https://api.scg.data-insights.ai", "http://localhost:8081", false},
+	} {
+		if got := SamePlatform(tc.a, tc.b); got != tc.same {
+			t.Errorf("SamePlatform(%q, %q) = %v, want %v", tc.a, tc.b, got, tc.same)
+		}
 	}
 }

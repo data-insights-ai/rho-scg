@@ -42,7 +42,7 @@ make clean          # remove binary + coverage
 
 ## Architecture
 
-SCG is a platform-only CLI. All resolution and profile queries go through the SCG Platform API at `api.scg.data-insights.ai`. The CLI has no local graph, no local resolvers, and no registry credentials.
+SCG is a platform-only CLI. All resolution and profile queries go through the SCG Platform API at `scg.data-insights.ai`. The CLI has no local graph, no local resolvers, and no registry credentials.
 
 ### Package Layout
 
@@ -83,7 +83,7 @@ internal/testutil  Test helpers
 - Ask before tagging if unsure
 
 ### Business Model — THE MOST IMPORTANT RULE
-- The platform (api.scg.data-insights.ai) is the ONLY resolver. Always. No exceptions.
+- The platform (scg.data-insights.ai) is the ONLY resolver. Always. No exceptions.
 - The registry-calling resolvers now live in `sigma-scg-platform/registry`, not here.
   `rho-scg/resolver` holds only the shared interface (Resolver, Resolution, Ecosystem,
   FreshnessReporter). Do not reintroduce registry HTTP code into this repo.

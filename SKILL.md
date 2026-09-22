@@ -106,7 +106,7 @@ An agent or automation should invoke SCG when:
 | Variable | Required | Purpose |
 |---|---|---|
 | `SCG_API_KEY` | Recommended | Raises the request budget from 20/hr (anonymous) to your plan's limit |
-| `SCG_PLATFORM_URL` | Optional | Platform endpoint; defaults to `https://api.scg.data-insights.ai` |
+| `SCG_PLATFORM_URL` | Optional | Platform endpoint; defaults to `https://scg.data-insights.ai` |
 
 `GITHUB_TOKEN` is **not** used and not needed. The CLI never calls GitHub,
 Docker Hub, npm or PyPI — all resolution goes through the SCG platform, which

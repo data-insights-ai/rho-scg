@@ -11,7 +11,7 @@ import (
 )
 
 // PlatformPublicKey is the SCG Platform's ed25519 signing key, pinned at build
-// time. It is served at https://api.scg.data-insights.ai/v1/pubkey, but the
+// time. It is served at https://scg.data-insights.ai/v1/pubkey, but the
 // copy that matters is this one: a key fetched at verification time is a key an
 // attacker who controls the network or the config can substitute.
 //

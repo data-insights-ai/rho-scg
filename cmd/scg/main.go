@@ -3,7 +3,7 @@
 // SCG prevents supply chain attacks by enforcing dependency integrity
 // and secret least-privilege across CI/CD pipelines.
 //
-// All resolution goes through the SCG Platform (api.scg.data-insights.ai).
+// All resolution goes through the SCG Platform (scg.data-insights.ai).
 // No GitHub token, Docker Hub account, or registry credentials needed.
 package main
 
@@ -84,7 +84,7 @@ func main() {
 			fmt.Fprintln(os.Stderr,
 				"\nThis is an SCG operational failure, not a supply chain finding. "+
 					"Nothing was detected about your dependencies. Retry, or check "+
-					"https://api.scg.data-insights.ai/v1/status")
+					"https://scg.data-insights.ai/v1/status")
 		}
 		os.Exit(code)
 	}
@@ -388,7 +388,7 @@ Flags (all commands):
 Environment:
   SCG_API_KEY        SCG Platform API key (CI; overrides the key stored by login)
   SCG_CONFIG_DIR     Where login stores credentials (default: the OS config dir, scg/)
-  SCG_PLATFORM_URL   Platform URL (default: https://api.scg.data-insights.ai)
+  SCG_PLATFORM_URL   Platform URL (default: https://scg.data-insights.ai)
   SCG_PASSWORD       Password for scg login --password, so no secret reaches the
                      shell history or a process listing
 

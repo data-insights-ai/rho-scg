@@ -9,7 +9,7 @@ User Interface        scg init | check | scope | audit
                            |
 Logic Layer           parser/ -> platform/client.go -> manifest/
                            |
-SCG Platform          api.scg.data-insights.ai
+SCG Platform          scg.data-insights.ai
                            |
 Data Engine           TKG TieredStore (32,000+ tools, 30 profiles)
 ```

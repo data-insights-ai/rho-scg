@@ -16,7 +16,7 @@ more than in most tools. Please report one privately.
 - The CLI (`scg`): lockfile parsing, signature verification, the secret
   scoping that removes forbidden secrets from a step's environment.
 - The GitHub Action (`action.yml`): install and checksum verification.
-- The public platform at `api.scg.data-insights.ai` as this CLI uses it.
+- The public platform at `scg.data-insights.ai` as this CLI uses it.
 
 ## What the CLI trusts
 
