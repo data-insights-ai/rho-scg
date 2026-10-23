@@ -88,9 +88,6 @@ required checks.
    scg init && scg check    # expect exit 0, "Signature verified"
    ```
 
-4. **The dogfood canary is green.** It runs every six hours and is the only
-   thing that exercises the released binary against the live platform.
-
 ---
 
 ## Known-good post-release state

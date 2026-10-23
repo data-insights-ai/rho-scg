@@ -45,7 +45,7 @@ jobs:
   # so. Verifying our own supply chain is the cheapest possible test that the
   # product actually works end to end.
   #
-  # Runs on main and on a schedule rather than on every pull request: the
+  # Runs on pushes to main rather than on every pull request: the
   # anonymous tier is 20 requests an hour per IP, and GitHub-hosted runners
   # share address space, so a busy PR queue would rate-limit itself. Forks
   # have no API key and are skipped rather than failing.
@@ -67,8 +67,7 @@ jobs:
       # A finding (exit 1) fails the job. An SCG operational failure (exit 2:
       # platform unreachable, budget spent, data past its freshness budget)
       # is a warning here: it says nothing about this repository and must not
-      # block merging CLI changes. The scheduled dogfood workflow is the hard
-      # canary for the platform.
+      # block merging CLI changes.
       - name: verify our own lockfile
         env:
           SCG_API_KEY: ${{ secrets.SCG_API_KEY }}
